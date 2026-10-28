@@ -34,14 +34,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
-    - name: Set up Python 3.10
+    - name: Set up Python 3.12
       uses: actions/setup-python@v6
       with:
-        python-version: "3.10"
+        python-version: "3.12"
         cache: pip
     - name: Instalar dependencias
       run: |
         python -m pip install --upgrade pip setuptools
         pip install -r requirements.txt pip-audit
-    - name: Auditar vulnerabilidades conocidas
-      run: pip-audit --skip-editable --desc on
+    - name: Auditar vulnerabilidades conocidas (setuptools<82 lo fija torch 2.11; sus dos fallas solo afectan la construcción de paquetes)
+      run: pip-audit --skip-editable --desc on --ignore-vuln PYSEC-2026-3447 --ignore-vuln GHSA-xmj3-9gf7-h52w

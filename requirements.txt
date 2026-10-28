@@ -1,5 +1,5 @@
 # Verificación documental de postulantes (Chile)
-# Entorno probado: Windows 11, Python 3.10, NVIDIA RTX 5070 Ti (Blackwell, sm_120)
+# Entorno probado: Windows 11, Python 3.12, NVIDIA RTX 5070 Ti (Blackwell, sm_120)
 #
 # Instalación:
 #   pip install -r requirements.txt
@@ -18,8 +18,8 @@ python-doctr==1.0.1          # detección (DBNet) + reconocimiento (PARSeq)
 pymupdf==1.28.2              # lectura de PDF, texto nativo, fuentes, metadatos, render
 opencv-python==4.14.0.94     # alineación con la plantilla (ORB/SIFT + homografía)
 numpy==2.2.6
-pillow>=10.0
-pillow-heif>=0.18            # fotos HEIC de iPhone
+pillow>=13.0                 # 13.0 corrige fallas de seguridad del decodificador
+pillow-heif>=1.8             # fotos HEIC de iPhone
 zxing-cpp==3.1.1             # lectura de códigos QR
 
 # --- Comparación, reglas y reportes
