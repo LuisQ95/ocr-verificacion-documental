@@ -5,8 +5,8 @@ Sistema que verifica si los documentos que entrega un postulante a un puesto de 
 
 Trabaja con dos documentos:
 
-- la **Hoja de Vida del Conductor** del Registro Civil (2 páginas);
-- el **Certificado de Competencia AMECO**, en sus versiones Rev.02 y Rev.03.
+- la **Hoja de Vida** del Registro Civil (2 páginas);
+- el **Certificado de Competencia**, en sus versiones Rev.02 y Rev.03.
 
 Cada documento se compara, campo por campo, con su dato oficial obtenido de la fuente (JSON).
 
