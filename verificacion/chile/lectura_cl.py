@@ -29,6 +29,9 @@ Image.MAX_IMAGE_PIXELS = None
 
 EXT_IMAGEN = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp", ".heic", ".heif"}
 EXT_ADMITIDAS = EXT_IMAGEN | {".pdf"}
+FORMATOS_IMAGEN = D.FORMATOS_IMAGEN + ("HEIF",)
+"""Formatos que Pillow puede abrir (ver documento.FORMATOS_IMAGEN), más HEIF para las fotos de iPhone. Las imágenes
+incrustadas en un PDF con otro formato (p. ej. JPEG 2000) se leen renderizando la página con PyMuPDF."""
 LADO_TRABAJO = (1400, 2400)
 """Rango del lado mayor (px) al que se llevan las imágenes antes de alinear."""
 PREPROCESO_BLANQUEO = False
@@ -93,7 +96,7 @@ def unidades(ruta):
     if suf in EXT_IMAGEN:
         n = 1
         if suf in (".tif", ".tiff"):
-            with Image.open(_abrible(ruta)) as im:
+            with Image.open(_abrible(ruta), formats=FORMATOS_IMAGEN) as im:
                 n = getattr(im, "n_frames", 1)
         return [(ruta, i, n) for i in range(n)]
     with _abrir_pdf(ruta) as doc:
@@ -103,7 +106,7 @@ def unidades(ruta):
 
 def cargar_imagen(ruta, pagina=0):
     """Imagen (o página `pagina` de un TIFF) en gris, con la rotación EXIF aplicada."""
-    with Image.open(_abrible(ruta)) as im:
+    with Image.open(_abrible(ruta), formats=FORMATOS_IMAGEN) as im:
         if pagina:
             im.seek(pagina)
         return np.asarray(ImageOps.exif_transpose(im).convert("L")).copy()
@@ -116,7 +119,8 @@ def imagen_de_pagina(page):
     if len(grandes) == 1:
         try:
             datos = page.parent.extract_image(grandes[0]["xref"])["image"]
-            return np.asarray(ImageOps.exif_transpose(Image.open(io.BytesIO(datos))).convert("L")).copy()
+            im = Image.open(io.BytesIO(datos), formats=FORMATOS_IMAGEN)
+            return np.asarray(ImageOps.exif_transpose(im).convert("L")).copy()
         except Exception:
             pass
     return D.render_gris(page, dpi=200)
