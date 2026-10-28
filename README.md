@@ -1,4 +1,4 @@
-# Verificación documental de postulantes (Chile)
+# Verificación documental de postulantes
 
 Sistema que verifica si los documentos que entrega un postulante a un puesto de operador de equipos son
 **auténticos, están vigentes y lo habilitan para el cargo**.
