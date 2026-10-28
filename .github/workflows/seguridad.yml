@@ -1,0 +1,47 @@
+name: Seguridad
+
+on:
+  push:
+    branches: [ "main", "desarrollo" ]
+  pull_request:
+    branches: [ "main", "desarrollo" ]
+  schedule:
+    - cron: "0 11 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+    - uses: actions/checkout@v5
+    - name: Inicializar CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: python
+        queries: security-extended
+    - name: Analizar
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:python"
+
+  dependencias:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.10"
+        cache: pip
+    - name: Instalar dependencias
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt pip-audit
+    - name: Auditar vulnerabilidades conocidas
+      run: pip-audit --skip-editable --desc on
