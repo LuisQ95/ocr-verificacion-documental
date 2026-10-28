@@ -19,7 +19,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - name: Inicializar CodeQL
       uses: github/codeql-action/init@v4
       with:
@@ -33,7 +33,7 @@ jobs:
   dependencias:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - name: Set up Python 3.12
       uses: actions/setup-python@v6
       with:
