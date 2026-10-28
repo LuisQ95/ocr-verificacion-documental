@@ -26,7 +26,7 @@ zxing-cpp==3.1.1             # lectura de códigos QR
 rapidfuzz==3.14.5            # similitud de texto y distancia de edición
 openpyxl==3.1.5              # reportes Excel y registro de postulantes
 pyyaml>=6.0                  # requisitos por cargo (config/requisitos_cl.yaml)
-pandas>=2.0                  # tablas del notebook
+pandas>=3.1.0                  # tablas del notebook
 
 # --- Visores web (visor/, visor_pruebas/)
 fastapi==0.143.2
