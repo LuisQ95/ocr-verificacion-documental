@@ -23,7 +23,7 @@ pillow-heif>=1.8             # fotos HEIC de iPhone
 zxing-cpp==3.1.1             # lectura de códigos QR
 
 # --- Comparación, reglas y reportes
-rapidfuzz==3.14.5            # similitud de texto y distancia de edición
+rapidfuzz==3.14.6            # similitud de texto y distancia de edición
 openpyxl==3.1.5              # reportes Excel y registro de postulantes
 pyyaml>=6.0                  # requisitos por cargo (config/requisitos_cl.yaml)
 pandas>=2.0                  # tablas del notebook
