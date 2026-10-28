@@ -33,7 +33,7 @@ fastapi==0.143.2
 uvicorn==0.54.0
 
 # --- Pruebas automáticas (python -m pytest tests)
-pytest>=8.0
+pytest>=9.1.1
 httpx>=0.27                  # cliente de pruebas de FastAPI
 
 # --- Generación de datos sintéticos (scripts/)
