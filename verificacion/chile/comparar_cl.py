@@ -63,6 +63,16 @@ VALOR_DE_OTRO_CAMPO = ("APROBAD", "REPROBAD")
 """Raíz de los valores de los campos cerrados. Si aparece dentro de un nombre, un domicilio o un código, el OCR leyó
 algo ajeno al campo (una firma, un timbre o la interfaz de una captura): es una lectura contaminada, no un dato
 cambiado."""
+CONECTORES = {"DE", "DEL", "N", "NO", "NRO"}
+"""Palabras de enlace del formato ("de TALCAHUANO", "N° MEJILLONES"): leídas junto al valor oficial completo no lo
+cambian."""
+DIAS_MIN_RENOVACION = 365
+"""Las licencias se renuevan cada varios años: dos otorgamientos de la misma licencia a menos de esto son sospechosos."""
+SUFIJO_P2 = " (pág. 2)"
+"""Sufijo de las zonas de la página 2 de la Hoja de Vida (ver pipeline_cl.unir_documento)."""
+ZONAS_EVALUADOR = ("evaluador1_nombre", "evaluador2_nombre", "evaluador_de_competencia")
+"""Nombres de los evaluadores. Quien falsifica pone el nombre de otro evaluador; una lectura casi idéntica al oficial
+(1-2 caracteres) es un error de lectura de la firma o del timbre vecino, no un cambio."""
 
 
 def _parecido_ocr(a, b, max_dist=2):
@@ -71,14 +81,46 @@ def _parecido_ocr(a, b, max_dist=2):
     return Levenshtein.distance(a, b) <= max_dist
 
 
+def _lectura_tolerable(tipo, oficial, leido, zona):
+    """Motivo si la lectura OCR es el valor oficial con ruido que no lo cambia; "" si no.
+
+    Solo para textos (no fechas, RUT, números ni clases, que tienen sus propias reglas). Las palabras que se quitan
+    nunca forman parte de un valor alternativo, así que un falsificador no gana nada con ellas."""
+    if tipo not in ("identidad", "descriptivo", "categorico") or zona in VALIDOS:
+        return ""
+    ko = N.clave_texto(oficial)
+    kl = N.clave_texto(N.quitar_prefijo(N.limpio(leido), "Operador Equipo,") if zona == "tipo_operador" else leido)
+    if len(ko) < 3:
+        return ""
+    tokens = kl.split()
+    sin_enlace = [t for t in tokens if re.sub(r"[^A-Z0-9]", "", t) not in CONECTORES]
+    if sin_enlace != tokens and " ".join(sin_enlace) == ko:
+        return "solo se leyeron palabras de enlace vecinas junto al valor oficial"
+    sin_ajenas = [t for t in tokens if not ("ROBAD" in t or "PROBAD" in t or len(t) >= 4 and t in "REPROBADO")]
+    if sin_ajenas != tokens and " ".join(sin_ajenas) == ko and not any(v in ko for v in VALOR_DE_OTRO_CAMPO):
+        return "se ignoró texto de otro campo (APROBADO...) leído dentro de la zona"
+    if zona in ZONAS_EVALUADOR and ko != kl and _parecido_ocr(ko, kl):
+        return "nombre del evaluador casi idéntico al oficial (error de lectura)"
+    return ""
+
+
 def comparar_valor(tipo, oficial, leido, es_ocr, conf, zona=""):
     """Estado y motivo de un campo según su tipo.
 
     Regla para documentos leídos por OCR: quien falsifica reemplaza un valor por OTRO VALOR VÁLIDO (otro nombre,
     un RUT con dígito verificador correcto, APROBADO en vez de REPROBADO, una clase que existe, una fecha válida).
-    Un error de lectura produce algo inválido o casi igual: eso es DUDOSO (revisión humana), no FALSIFICADO."""
+    Un error de lectura produce algo inválido o casi igual: eso es DUDOSO (revisión humana), no FALSIFICADO.
+
+    Se toleran (IGUAL_TOLERADO_OCR) las lecturas que solo agregan palabras de enlace al valor oficial completo, las
+    que coinciden al quitar el texto de otro campo (APROBADO...) y, en los nombres de evaluador, las casi idénticas.
+    """
     estado, motivo = _comparar_valor(tipo, oficial, leido, es_ocr, conf, zona)
-    if estado != DIFERENTE or not es_ocr:
+    if estado not in (DIFERENTE, DUDOSO) or not es_ocr:
+        return estado, motivo
+    tolerado = _lectura_tolerable(tipo, oficial, leido, zona)
+    if tolerado:
+        return TOLERADO, tolerado
+    if estado != DIFERENTE:
         return estado, motivo
     le = N.limpio(leido)
     if zona == "tipo_operador":
@@ -180,13 +222,21 @@ def _comparar_valor(tipo, oficial, leido, es_ocr, conf, zona=""):
     return diferente()
 
 
+def _renovacion_plausible(fecha_doc, fecha_oficial):
+    """True si la fecha impresa puede ser la de la licencia antes de su renovación oficial: anterior y con al menos
+    DIAS_MIN_RENOVACION de diferencia. Una fecha impresa poco antes de la renovación es la técnica de quien "renueva"
+    una licencia vencida en el documento."""
+    return bool(fecha_doc and fecha_oficial and (fecha_oficial - fecha_doc).days >= DIAS_MIN_RENOVACION)
+
+
 def _comparar_filas(doc_filas, js, emision, es_ocr, tiene_p2=True):
     """Licencias, anotaciones y antecedentes: conjuntos de filas. Un registro oficial anterior a la emisión
     que no figura en el documento = ocultado; uno posterior = documento desactualizado.
 
     - Licencias: clave (registro, clase); se comparan fecha y municipalidad. Con OCR, si no se detectó la clase, es la
-      misma fila cuando coinciden registro y fecha. Una fila "nueva" solo acusa si está bien formada (clase
-      existente y fecha válida).
+      misma fila cuando coinciden registro y fecha, o cuando la licencia oficial se renovó después de la emisión y la
+      fila muestra una fecha anterior que no es la de ninguna otra licencia (la fila antes de renovarse). Una fila
+      "nueva" solo acusa si está bien formada (clase existente y fecha válida).
     - Anotaciones: se emparejan por fecha de anotación o por tipo y detalle. Sin la página 2, una anotación cortada
       al final de la página 1 (su fecha quedó en la página 2) se compara solo en lo que se ve. Un encabezado suelto
       mal leído (sin texto ni fecha) no es una anotación.
@@ -212,6 +262,10 @@ def _comparar_filas(doc_filas, js, emision, es_ocr, tiene_p2=True):
         if not cand and es_ocr:
             cand = [j for j, ld in enumerate(doc_filas["licencias"]) if j not in usadas and not ld["Clase"]
                     and ld["Registro"] == lo["Registro"] and ld["fecha"] == lo["fecha"]]
+        if not cand and es_ocr and emision and lo["fecha"] and lo["fecha"] > emision:
+            cand = [j for j, ld in enumerate(doc_filas["licencias"]) if j not in usadas and not ld["Clase"]
+                    and ld["Registro"] == lo["Registro"] and _renovacion_plausible(ld["fecha"], lo["fecha"])
+                    and not any(o["Registro"] == ld["Registro"] and o["fecha"] == ld["fecha"] for o in of["licencias"])]
         nombre = f"licencia {lo['Registro'].lower()} clase {lo['Clase']}"
         if not cand:
             e, m = estado_falta(lo["fecha"], "licencia")
@@ -228,7 +282,10 @@ def _comparar_filas(doc_filas, js, emision, es_ocr, tiene_p2=True):
         elif ld["fecha"] is None:
             e, m = (DUDOSO, "fecha ilegible") if es_ocr else (DIFERENTE, "fecha inválida")
         elif emision and lo["fecha"] and lo["fecha"] > emision and ld["fecha"] < lo["fecha"]:
-            e, m = DESACT_C, "la licencia se renovó después de la emisión del documento"
+            e, m = (DESACT_C, "la licencia se renovó después de la emisión del documento") \
+                if _renovacion_plausible(ld["fecha"], lo["fecha"]) else \
+                (DUDOSO, f"la fecha impresa ({ld['fecha']}) es de menos de un año antes de la renovación oficial: "
+                         "revisar si fue alterada")
         else:
             e, m = comparar_valor("fecha", str(lo["fecha"]), ld["fecha_txt"], es_ocr, ld["conf"])
         campos.append({"zona": f"{nombre} - fecha", "oficial": str(lo["fecha"]), "postulante": ld["fecha_txt"],
@@ -412,6 +469,8 @@ def comparar_documento(doc, js, plantillas_doc, declarado, hoy):
     - Una diferencia en una zona que contiene texto impreso del formato vecino es una lectura desalineada (DUDOSO).
     - Identidad: el documento debe estar a nombre del RUT declarado. Solo un RUT completo y válido (dígito
       verificador) puede ser "de otra persona"; una lectura parcial no.
+    - La cabecera de la página 2 repite nombre, RUN y fecha de nacimiento: si la página 1 ya confirmó el valor, una
+      lectura dudosa de la repetición no manda a revisión (un valor distinto leído con confianza sí acusa).
     """
     es_ocr = doc["es_ocr"]
     valores = doc["valores"]
@@ -443,6 +502,11 @@ def comparar_documento(doc, js, plantillas_doc, declarado, hoy):
                                     "lectura desalineada")
             campos.append({"zona": zona, "oficial": oficial, "postulante": leido, "estado": e, "motivo": m,
                            "conf": round(conf, 3)})
+        estados = {c["zona"]: c["estado"] for c in campos}
+        for c in campos:
+            if c["zona"].endswith(SUFIJO_P2) and c["estado"] == DUDOSO \
+                    and estados.get(c["zona"][:-len(SUFIJO_P2)]) in (IGUAL, TOLERADO):
+                c["estado"], c["motivo"] = TOLERADO, "la página 1 confirma el valor; esta repetición se leyó con ruido"
         if tipo_doc == "hoja_vida" and doc.get("filas") is not None:
             campos += _comparar_filas(doc["filas"], js, emision, es_ocr,
                                       tiene_p2="página 2" not in (doc.get("pagina_faltante") or ""))

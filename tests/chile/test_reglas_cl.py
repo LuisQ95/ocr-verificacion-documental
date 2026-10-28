@@ -69,7 +69,7 @@ def test_ocr_errores_de_lectura_no_acusan():
     assert K.comparar_valor("identidad", "JUAN PEREZ SOTO", "JUAN PERFZ SOTO", True, 0.99)[0] == K.DUDOSO
     assert K.comparar_valor("categorico", "APROBADO", "APROBAD0X", True, 0.99, "estado_evaluacion")[0] == K.DUDOSO
     assert K.comparar_valor("codigo", "AMCH-52330", "AMCH-52", True, 0.99)[0] == K.DUDOSO
-    assert K.comparar_valor("categorico", "VALDIVIA", "de VALDIVIA", True, 0.99)[0] == K.DUDOSO
+    assert K.comparar_valor("categorico", "VALDIVIA", "VALDIVIA RENCA", True, 0.99)[0] == K.DUDOSO
     assert K.comparar_valor("fecha", "05-09-2026", "05 ?? 2026", True, 0.99)[0] == K.DUDOSO
     assert K.comparar_valor("rut", RUT_OK, RUT_OTRO, True, 0.30)[0] == K.DUDOSO
 
@@ -79,13 +79,61 @@ def test_lecturas_contaminadas_no_acusan():
     otro campo (APROBADO) dentro de un nombre o domicilio es una lectura contaminada. Con OCR quedan en duda; en
     un PDF nativo siguen acusando."""
     assert K.comparar_valor("numero", "78%", "APROBADO", True, 0.99, "nota_refuerzo_brechas")[0] == K.DUDOSO
-    assert K.comparar_valor("identidad", "Jorge Vidal Acuña", "Jorge APROBADO Vidal Acuña", True, 0.99,
+    assert K.comparar_valor("identidad", "Jorge Vidal Acuña", "Jorge APROBADO Vidal Soto", True, 0.99,
                             "evaluador2_nombre")[0] == K.DUDOSO
     assert K.comparar_valor("descriptivo", "AVENIDA COLON 383", "AVENIDA COLON 383 100% APROBADO", True, 0.99,
                             "domicilio")[0] == K.DUDOSO
     assert K.comparar_valor("identidad", "Jorge Vidal Acuña", "Jorge APROBADO Vidal Acuña", False, 1.0,
                             "evaluador2_nombre")[0] == K.DIFERENTE
     assert K.comparar_valor("numero", "78%", "98%", True, 0.99, "nota_refuerzo_brechas")[0] == K.DIFERENTE
+
+
+def test_ruido_que_no_cambia_el_valor_se_tolera():
+    """Palabras de enlace junto al valor oficial completo, texto de otro campo (APROBADO...) dentro de la zona y un
+    nombre de evaluador casi idéntico se toleran. Otro valor, otro evaluador o un PDF nativo siguen igual."""
+    assert K.comparar_valor("categorico", "VALDIVIA", "de VALDIVIA", True, 0.99)[0] == K.TOLERADO
+    assert K.comparar_valor("categorico", "MEJILLONES", "N° MEJILLONES", True, 0.95)[0] == K.TOLERADO
+    assert K.comparar_valor("identidad", "Jorge Vidal Acuña", "Jorge APROBADcionamientoROBADO Vidal Acuña", True, 0.99,
+                            "evaluador2_nombre")[0] == K.TOLERADO
+    assert K.comparar_valor("identidad", "Alexis Gutiérrez Peralta", "Alexis Gutiérrez Peraka", True, 0.40,
+                            "evaluador1_nombre")[0] == K.TOLERADO
+    assert K.comparar_valor("identidad", "Alexis Gutiérrez Peralta", "Jorge Vidal Acuña", True, 0.99,
+                            "evaluador1_nombre")[0] == K.DIFERENTE
+    assert K.comparar_valor("identidad", "JUAN PEREZ SOTO", "JUAN PERFZ SOTO", True, 0.99, "nombre")[0] == K.DUDOSO
+    assert K.comparar_valor("categorico", "VALDIVIA", "de VALDIVIA", False, 1.0)[0] == K.DIFERENTE
+
+
+def test_repeticion_de_pagina_2_confirmada_por_la_pagina_1():
+    """Una lectura dudosa del nombre repetido en la página 2 no manda a revisión si la página 1 lo confirma; un nombre
+    distinto leído con confianza sigue acusando."""
+    zonas = {"nombre": {"tipo": "identidad", "clave": "Nombre"}, "nombre (pág. 2)": {"tipo": "identidad", "clave": "Nombre"}}
+    doc = _doc({"nombre": "JUAN PEREZ SOTO"})
+    doc["valores"]["nombre (pág. 2)"] = {"texto": "JUAN PEREZ SOTA", "conf": 0.30}
+    r = K.comparar_documento(doc, JS, zonas, {}, date(2026, 10, 18))
+    assert r["veredicto"] == K.AUTENTICO
+    doc["valores"]["nombre (pág. 2)"] = {"texto": "PEDRO ROJAS DIAZ", "conf": 0.99}
+    assert K.comparar_documento(doc, JS, zonas, {}, date(2026, 10, 18))["veredicto"] == K.FALSIFICADO
+
+
+def test_licencia_renovada_despues_de_la_emision_sin_clase_leida():
+    """La fila previa a una renovación posterior a la emisión deja el documento desactualizado aunque no se haya leído
+    la clase. Una fecha impresa a menos de un año de la renovación oficial (licencia "renovada" en el documento) va a
+    revisión."""
+    js = dict(JS_HV, Anotaciones=[], **{"Licencias registradas": [
+        {"Registro": "ULTIMA", "Clase": "D", "Fecha otorgamiento": "07-10-2026", "Municipalidad": "CONCEPCION"}]})
+    def fila(fecha, clase=""):
+        """Filas leídas con una sola licencia ÚLTIMA de la fecha y clase dadas."""
+        return {"licencias": [{"Registro": "ULTIMA", "Clase": clase, "fecha": fecha, "fecha_txt": str(fecha),
+                               "Municipalidad": "CONCEPCION", "conf": 0.9}], "anotaciones": [], "conf_min": 0.9,
+                "antecedentes": {"PRN": "SIN ANTECEDENTES", "RNC": "SIN ANTECEDENTES"}}
+
+    def estados(f):
+        """Estados de los campos comparados, con la Hoja de Vida emitida el 26-09-2026."""
+        return {c["estado"] for c in K._comparar_filas(f, js, date(2026, 9, 26), True)}
+
+    assert estados(fila(date(2020, 9, 22))) == {K.DESACT_C, K.IGUAL}
+    assert K.DUDOSO in estados(fila(date(2026, 7, 11)))
+    assert K.DUDOSO in estados(fila(date(2026, 7, 11), "D"))
 
 
 def test_clase_inexistente_no_pasa_como_igual():

@@ -168,3 +168,31 @@ subconjunto):
 3. **Si no empeora:** actualizar `MODELO_PARSEQ` y `CALIBRACION_CONF` en `verificacion/config.py` y correr `pytest tests`.
 
 **Respaldo.** `parseq_cl_puro.pt` y su calibración no se borran. Volver atrás es cambiar dos líneas de `config.py`.
+
+## 7. Menos genuinos a revisión (reglas, 2026-10-28)
+
+Con el v4 adoptado, el 12 % de los genuinos seguía en OBSERVADO. Se analizaron las causas en el subconjunto de
+ajuste y se agregaron reglas en `verificacion/chile/comparar_cl.py` (tests en `tests/chile/test_reglas_cl.py`):
+
+- **Repetición de la página 2:** si la página 1 ya confirmó el nombre, el RUN o la fecha de nacimiento, una lectura
+  dudosa de la cabecera repetida en la página 2 no manda a revisión. En las falsificaciones el dato cambia en ambas
+  páginas y se lee con confianza alta, así que sigue acusando.
+- **Ruido que no cambia el valor:** palabras de enlace junto al valor oficial completo ("de TALCAHUANO",
+  "N° MEJILLONES") y texto de otro campo dentro de la zona ("Jorge APROBADO Vidal Acuña").
+- **Nombres de evaluador casi idénticos** al oficial (1-2 caracteres). Otro evaluador sigue acusando.
+- **Licencia renovada después de la emisión con la clase sin leer:** la fila anterior a la renovación deja el
+  documento DESACTUALIZADO, como cuando la clase sí se lee.
+- **Renovación demasiado reciente:** una fecha impresa a menos de un año de la renovación oficial no se da por
+  "desactualizada" y va a revisión. Es la técnica de quien "renueva" una licencia en el documento; sin esta condición,
+  una de esas falsificaciones habría pasado de OBSERVADO a DESACTUALIZADO.
+
+| | v4 ajuste antes | **v4 ajuste ahora** | v4 reservado antes | **v4 reservado ahora** |
+|---|---|---|---|---|
+| Falsificaciones detectadas | 234/267 | 234/267 | 221/253 | 221/253 |
+| Falsificaciones escapadas (AUTÉNTICO) | 1 | 1 | 0 | 0 |
+| Genuinos acusados (FALSIFICADO) | 0/626 | 0/626 | 2/634 | 2/634 |
+| Genuinos a revisión (OBSERVADO) | 76 | **51** | 76 | **55** |
+
+En ambos subconjuntos solo cambiaron documentos genuinos (de OBSERVADO a AUTÉNTICO o DESACTUALIZADO): ninguna
+falsificación cambió de dictamen. Lo que sigue en revisión es, sobre todo, la Hoja de Vida sin página 2 (correcto),
+fechas a las que el detector no les vio el día (un "9" suelto) y fotos con texto de otro documento superpuesto.
