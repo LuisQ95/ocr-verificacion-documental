@@ -39,6 +39,7 @@ from pydantic import BaseModel
 
 from verificacion import config as C
 from verificacion import recursos as R
+from verificacion.chile import lectura_cl as L
 from verificacion.chile import pipeline_cl as PL
 from verificacion.reporte import escribir_reporte
 
@@ -383,7 +384,7 @@ def miniatura(ruta: str, pagina: int = 0):
         with pymupdf.open(p) as doc:
             png = doc[min(pagina, doc.page_count - 1)].get_pixmap(dpi=70).tobytes("png")
     else:
-        im = Image.open(p).convert("RGB")
+        im = Image.open(p, formats=L.FORMATOS_IMAGEN).convert("RGB")
         im.thumbnail((700, 900))
         import io
         buf = io.BytesIO()

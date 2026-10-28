@@ -20,6 +20,10 @@ from .plantillas import dibujos_pdf, palabras_pdf
 
 EXT_IMAGEN = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
 EXT_ADMITIDAS = EXT_IMAGEN | {".pdf"}
+FORMATOS_IMAGEN = ("JPEG", "PNG", "TIFF", "BMP", "WEBP")
+"""Formatos que Pillow puede abrir: solo los de fotos y escaneos. Pillow reconoce el formato por el contenido, no
+por la extensión, y la mayoría de sus fallas de seguridad están en decodificadores de formatos poco usados (FPX, EPS,
+GIF, JPEG 2000, SPIDER...): con esta lista un archivo malicioso disfrazado de foto no llega a ellos."""
 
 _PLANTILLAS = None
 _FEATURES = None
@@ -146,7 +150,7 @@ def recortar_documento(img):
 
 def cargar_imagen(ruta):
     """Imagen suelta (foto o escaneo) -> gris, con la rotación EXIF aplicada."""
-    with Image.open(ruta) as im:
+    with Image.open(ruta, formats=FORMATOS_IMAGEN) as im:
         return np.asarray(ImageOps.exif_transpose(im).convert("L")).copy()
 
 

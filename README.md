@@ -91,7 +91,7 @@ verificar_postulante_cl.ipynb                      verificación de un postulant
 
 ## Instalación
 
-Requiere Python 3.10 y, para el OCR en GPU, una tarjeta NVIDIA. Sin GPU funciona en CPU, más lento.
+Requiere Python 3.12 (o superior) y, para el OCR en GPU, una tarjeta NVIDIA. Sin GPU funciona en CPU, más lento.
 
 ```bash
 pip install -r requirements.txt

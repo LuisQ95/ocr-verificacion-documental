@@ -1,0 +1,34 @@
+name: Revisiones de publicación
+
+on:
+  push:
+  pull_request:
+    branches: [ "main", "desarrollo" ]
+
+permissions:
+  contents: read
+
+jobs:
+  datos-sensibles:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+    - name: Buscar datos sensibles
+      env:
+        TERMINOS_PROHIBIDOS: ${{ secrets.TERMINOS_PROHIBIDOS }}
+      run: python .github/scripts/revisar_publicacion.py datos
+
+  sin-comentarios:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+    - name: Buscar comentarios con #
+      run: python .github/scripts/revisar_publicacion.py comentarios
