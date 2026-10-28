@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------- datos personales y de acceso (NUNCA subir)
+DATOS REALES/
+kit_evaluador/
+kit_evaluador.zip
+visor_pruebas/acceso.json
+visor_pruebas/kit_respuestas.md
+.claude/
+
+# ---------------------------------------------------------------- herramientas propias de esta instalación
+*.bat
+visor_pruebas/permitir_firewall.ps1
+visor_pruebas/GUIA_ACCESO.md
+herramientas/
+
+# ---------------------------------------------------------------- plantillas oficiales y generador de documentos
+# Las plantillas reales y el generador que las rellena (timbre, firmas, códigos, técnicas de falsificación)
+# permitirían fabricar documentos falsos: se mantienen solo en local. Se publica el vocabulario de nombres.
+official_file/
+scripts/sinteticos_reales/*
+!scripts/sinteticos_reales/__init__.py
+!scripts/sinteticos_reales/vocabulario_amplio.py
+
+# ---------------------------------------------------------------- datos sintéticos (se regeneran con scripts/)
+postulant_files/
+webscrap_files/
+etiquetas_ocr_v2/
+ground_truth_v2/
+entrenamiento/training/
+entrenamiento/testing/
+entrenamiento/training_v2/
+entrenamiento/testing_v2/
+entrenamiento/piloto*/
+entrenamiento/vocabulario_v2.json
+
+# ---------------------------------------------------------------- modelos y resultados (los pesos van en un Release)
+modelos/
+resultados/
+
+# ---------------------------------------------------------------- registros y marcas de ejecución
+*.log
+*.fin
+.candado_*
+PROMPT_ADAPTACION_DATOS.md
+
+# ---------------------------------------------------------------- Python / entorno
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

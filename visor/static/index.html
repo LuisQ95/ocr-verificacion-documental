@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verificación de postulantes</title>
+<style>
+  :root {
+    --fondo:#f4f6f9; --panel:#ffffff; --texto:#18202e; --suave:#5d677a; --borde:#dde2ea; --acento:#1d4ed8;
+    --rojo:#c62828; --rojo-f:#fbe3e1; --amar:#a16207; --amar-f:#fdf1cf; --azul:#1e40af; --azul-f:#dfe8fb;
+    --verde:#15803d; --verde-f:#dcf2e3; --gris-f:#eef1f5; --sombra:0 1px 2px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fondo:#0f141c; --panel:#171e2a; --texto:#e6eaf0; --suave:#9aa5b8; --borde:#2a3444; --acento:#6c9cff;
+      --rojo:#ff8a80; --rojo-f:#3a1e1e; --amar:#f3c969; --amar-f:#3a3018; --azul:#9db8ff; --azul-f:#1d2a48;
+      --verde:#7ddc9c; --verde-f:#173225; --gris-f:#212a38; --sombra:none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fondo:#0f141c; --panel:#171e2a; --texto:#e6eaf0; --suave:#9aa5b8; --borde:#2a3444; --acento:#6c9cff;
+    --rojo:#ff8a80; --rojo-f:#3a1e1e; --amar:#f3c969; --amar-f:#3a3018; --azul:#9db8ff; --azul-f:#1d2a48;
+    --verde:#7ddc9c; --verde-f:#173225; --gris-f:#212a38; --sombra:none;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--fondo); color:var(--texto); font:14px/1.45 system-ui, "Segoe UI", sans-serif; }
+  header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 20px; background:var(--panel);
+           border-bottom:1px solid var(--borde); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:17px; margin:0; flex:1; min-width:200px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:var(--gris-f);
+          color:var(--suave); font-size:12px; white-space:nowrap; }
+  .punto { width:8px; height:8px; border-radius:50%; background:var(--verde); }
+  .punto.ocupado { background:var(--amar); }
+  main { max-width:1280px; margin:0 auto; padding:16px 20px 40px; display:grid; gap:16px; }
+  .panel { background:var(--panel); border:1px solid var(--borde); border-radius:10px; padding:16px; box-shadow:var(--sombra); }
+  .panel h2 { font-size:14px; margin:0 0 12px; color:var(--suave); text-transform:uppercase; letter-spacing:.04em; }
+  .fila { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  button, select, input[type=text] { font:inherit; color:var(--texto); background:var(--panel); border:1px solid var(--borde);
+          border-radius:8px; padding:8px 12px; }
+  button { cursor:pointer; }
+  button.primario { background:var(--acento); border-color:var(--acento); color:#fff; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  label.check { display:inline-flex; gap:6px; align-items:center; color:var(--suave); font-size:13px; }
+  .buscador { position:relative; flex:1; min-width:260px; }
+  .buscador input { width:100%; }
+  .sugerencias { position:absolute; left:0; right:0; top:100%; margin-top:4px; background:var(--panel); border:1px solid var(--borde);
+                 border-radius:8px; max-height:300px; overflow:auto; z-index:10; display:none; box-shadow:0 8px 24px rgba(0,0,0,.15); }
+  .sugerencias div { padding:8px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .sugerencias div:hover, .sugerencias div.activa { background:var(--gris-f); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chip { background:var(--azul-f); color:var(--azul); border-radius:999px; padding:3px 6px 3px 10px; display:inline-flex; gap:4px; align-items:center; }
+  .chip button { border:none; background:none; padding:0 4px; color:inherit; font-size:15px; }
+  .progreso { margin-top:12px; display:none; }
+  .barra { height:10px; background:var(--gris-f); border-radius:999px; overflow:hidden; }
+  .barra > div { height:100%; background:var(--acento); width:0; transition:width .4s; }
+  .progreso .info { display:flex; justify-content:space-between; gap:8px; margin-top:6px; color:var(--suave); font-size:13px; flex-wrap:wrap; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; }
+  .kpi { background:var(--panel); border:1px solid var(--borde); border-radius:10px; padding:14px; }
+  .kpi .v { font-size:28px; font-weight:650; }
+  .kpi .e { color:var(--suave); font-size:13px; }
+  .dos { display:grid; grid-template-columns:2fr 1fr; gap:16px; }
+  @media (max-width:860px) { .dos { grid-template-columns:1fr; } }
+  .barras .linea { display:grid; grid-template-columns:150px 1fr 90px; gap:10px; align-items:center; margin:8px 0; }
+  .barras .pista { display:flex; height:16px; background:var(--gris-f); border-radius:4px; overflow:hidden; }
+  .barras .seg { height:100%; }
+  .barras .n { color:var(--suave); font-size:12px; text-align:right; white-space:nowrap; }
+  .leyenda { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--suave); margin-top:6px; }
+  .leyenda i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--borde); vertical-align:top; }
+  th { color:var(--suave); font-weight:600; font-size:12px; cursor:pointer; user-select:none; white-space:nowrap; }
+  tbody tr.persona { cursor:pointer; }
+  tbody tr.persona:hover { background:var(--gris-f); }
+  .tabla-wrap { overflow:auto; max-height:560px; }
+  .badge { display:inline-block; border-radius:6px; padding:2px 8px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .FALSIFICADO, .DIFERENTE, .NO_APTO { background:var(--rojo-f); color:var(--rojo); }
+  .OBSERVADO, .DUDOSO, .INCOMPLETO, .NO_EVALUABLE { background:var(--amar-f); color:var(--amar); }
+  .DESACTUALIZADO { background:var(--azul-f); color:var(--azul); }
+  .AUTÉNTICO, .APTO, .IGUAL_TOLERADO_OCR { background:var(--verde-f); color:var(--verde); }
+  .NO_LEGIBLE { background:var(--amar-f); color:var(--amar); }
+  .NO_VÁLIDO { background:var(--azul-f); color:var(--azul); }
+  .NO_RECONOCIDO, .NO_APLICA { background:#eeeeee; color:#666666; }
+  .doc-tag { display:inline-block; margin:2px 4px 2px 0; padding:2px 8px; border-radius:6px; font-size:12px; }
+  .vacio { color:var(--suave); padding:24px; text-align:center; }
+  .detalle { display:none; }
+  .doc { border:1px solid var(--borde); border-radius:10px; padding:12px; margin-top:12px; }
+  .doc h3 { margin:0 0 6px; font-size:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .miniaturas { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
+  .miniaturas figure { margin:0; }
+  .miniaturas img { width:100%; border:1px solid var(--borde); border-radius:6px; background:#fff; }
+  .miniaturas figcaption { color:var(--suave); font-size:12px; margin-bottom:4px; }
+  .motivos { color:var(--suave); font-size:13px; margin:4px 0 0; padding-left:18px; }
+  .historial td, .historial th { font-size:13px; }
+  a { color:var(--acento); }
+  .toast { position:fixed; bottom:20px; right:20px; background:var(--texto); color:var(--panel); padding:10px 16px; border-radius:8px; display:none; z-index:20; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Verificación de documentos de postulantes</h1>
+  <span class="pill" id="estado-gpu"><span class="punto" id="punto"></span><span id="texto-gpu">consultando…</span></span>
+  <span class="pill" id="estado-cola">sin revisiones en curso</span>
+  <button id="tema" title="Cambiar tema claro/oscuro">◐</button>
+</header>
+<main>
+  <section class="panel">
+    <h2>Revisar</h2>
+    <div class="fila">
+      <div class="buscador">
+        <input type="text" id="buscar" placeholder="Buscar por nombre o RUT y presionar Enter para agregar…" autocomplete="off">
+        <div class="sugerencias" id="sugerencias"></div>
+      </div>
+      <button class="primario" id="btn-sel" disabled>Revisar seleccionados</button>
+      <button id="btn-todos">Revisar todos</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="fila" style="margin-top:10px">
+      <label class="check" style="display:none"><input type="checkbox" id="segundo"> Segundo lector (no se usa en los documentos chilenos)</label>
+      <label class="check"><input type="checkbox" id="forzar"> Volver a procesar aunque ya estén revisados</label>
+    </div>
+    <div class="progreso" id="progreso">
+      <div class="barra"><div id="barra"></div></div>
+      <div class="info"><span id="fase">—</span><span id="detalle-prog"></span><button id="btn-cancelar">Cancelar</button></div>
+    </div>
+  </section>
+
+  <section class="fila" style="justify-content:space-between">
+    <div class="fila">
+      <label class="check">Ver:
+        <select id="alcance"><option value="acumulado">Todo lo revisado (acumulado)</option></select>
+      </label>
+    </div>
+    <div class="fila">
+      <button id="btn-excel">Descargar Excel de esta vista</button>
+    </div>
+  </section>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="dos">
+    <div class="panel">
+      <h2>Documentos con diferencias por tipo</h2>
+      <div class="barras" id="por-tipo"></div>
+      <div class="leyenda"><span><i style="background:var(--rojo)"></i>Falsificado</span><span><i style="background:var(--amar)"></i>Observado</span>
+        <span><i style="background:var(--azul)"></i>Desactualizado</span><span><i style="background:var(--verde)"></i>Auténtico</span></div>
+    </div>
+    <div class="panel">
+      <h2>Por formato de archivo</h2>
+      <div class="barras" id="por-formato"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Postulantes</h2>
+    <div class="fila" style="margin-bottom:10px">
+      <select id="filtro">
+        <option value="diferencias">Con diferencias (falso u observado)</option>
+        <option value="todos">Todos</option>
+        <option value="FALSIFICADO">Solo falsificados</option>
+        <option value="OBSERVADO">Solo observados</option>
+        <option value="DESACTUALIZADO">Solo desactualizados</option>
+        <option value="NO LEGIBLE">Con documentos ilegibles</option>
+        <option value="NO VÁLIDO">Con copias no válidas</option>
+        <option value="NO APTO">No aptos</option>
+        <option value="INCOMPLETO">Incompletos</option>
+      </select>
+      <input type="text" id="buscar-tabla" placeholder="Filtrar por nombre o RUT…" style="flex:1;min-width:200px">
+      <span class="pill" id="conteo-tabla"></span>
+    </div>
+    <div class="tabla-wrap">
+      <table>
+        <thead><tr>
+          <th data-col="carpeta">Postulante</th><th data-col="dni">RUT</th><th data-col="documentos">Docs</th>
+          <th data-col="falsificados">Falsos</th><th data-col="observados">Observ.</th><th>Documentos con diferencias (tipo · formato)</th>
+          <th data-col="veredicto">Autenticidad</th><th data-col="aptitud">Aptitud</th>
+        </tr></thead>
+        <tbody id="tabla"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel detalle" id="detalle"></section>
+
+  <section class="panel">
+    <h2>Historial de revisiones</h2>
+    <div class="tabla-wrap" style="max-height:280px">
+      <table class="historial"><thead><tr><th>Fecha</th><th>Tipo</th><th>Postulantes</th><th>Procesados</th><th>Desde caché</th>
+        <th>Estado</th><th>Duración</th><th>Excel</th></tr></thead><tbody id="historial"></tbody></table>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cls = (s) => String(s ?? "").replace(/\s+/g, "_");
+let postulantes = [], seleccion = new Set(), resumen = null, orden = {col: "falsificados", dir: -1};
+let activo = null, ultimoTerminado = null, sugActiva = -1, estadoInicial = false;
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; setTimeout(() => t.style.display = "none", 3500); }
+async function api(url, op) {
+  const r = await fetch(url, op);
+  if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch (e) {} throw new Error(m); }
+  return r.json();
+}
+const sinTildes = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+
+// ------------------------------------------------ tema
+(function () {
+  let t = null; try { t = localStorage.getItem("tema"); } catch (e) {}
+  if (t) document.documentElement.dataset.theme = t;
+  $("tema").onclick = () => {
+    const oscuro = document.documentElement.dataset.theme
+      ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    const nuevo = oscuro ? "light" : "dark";
+    document.documentElement.dataset.theme = nuevo;
+    try { localStorage.setItem("tema", nuevo); } catch (e) {}
+  };
+})();
+
+// ------------------------------------------------ buscador
+function sugerencias() {
+  const q = sinTildes($("buscar").value.trim());
+  const caja = $("sugerencias");
+  if (!q) { caja.style.display = "none"; return; }
+  const lista = postulantes.filter((p) => sinTildes(p.carpeta).includes(q) || p.dni.includes(q)).slice(0, 12);
+  sugActiva = lista.length ? 0 : -1;
+  caja.innerHTML = lista.map((p, i) => `<div data-c="${esc(p.carpeta)}" class="${i === 0 ? "activa" : ""}">
+      <span>${esc(p.carpeta)} <span style="color:var(--suave)">${esc(p.dni)}</span></span>
+      <span>${p.veredicto ? `<span class="badge ${cls(p.veredicto)}">${esc(p.veredicto)}</span>` : '<span class="pill">sin revisar</span>'}</span></div>`).join("")
+    || '<div style="color:var(--suave)">Sin coincidencias</div>';
+  caja.style.display = "block";
+  caja.querySelectorAll("div[data-c]").forEach((d) => d.onmousedown = (e) => { e.preventDefault(); agregar(d.dataset.c); });
+}
+function agregar(c) { seleccion.add(c); $("buscar").value = ""; $("sugerencias").style.display = "none"; pintarChips(); }
+function pintarChips() {
+  $("chips").innerHTML = [...seleccion].map((c) => `<span class="chip">${esc(c)}<button data-c="${esc(c)}" title="Quitar">×</button></span>`).join("");
+  $("chips").querySelectorAll("button").forEach((b) => b.onclick = () => { seleccion.delete(b.dataset.c); pintarChips(); });
+  $("btn-sel").disabled = seleccion.size === 0 || !!activo;
+  $("btn-sel").textContent = seleccion.size ? `Revisar seleccionados (${seleccion.size})` : "Revisar seleccionados";
+}
+$("buscar").addEventListener("input", sugerencias);
+$("buscar").addEventListener("keydown", (e) => {
+  const items = [...$("sugerencias").querySelectorAll("div[data-c]")];
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault(); if (!items.length) return;
+    sugActiva = (sugActiva + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items.forEach((d, i) => d.classList.toggle("activa", i === sugActiva));
+  } else if (e.key === "Enter" && items[sugActiva]) { e.preventDefault(); agregar(items[sugActiva].dataset.c); }
+  else if (e.key === "Escape") $("sugerencias").style.display = "none";
+});
+$("buscar").addEventListener("blur", () => setTimeout(() => $("sugerencias").style.display = "none", 150));
+
+// ------------------------------------------------ lanzar revisiones
+async function lanzar(cuerpo) {
+  try {
+    const r = await api("/api/revisar", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({...cuerpo, segundo_lector: $("segundo").checked, forzar: $("forzar").checked})});
+    toast(`Revisión iniciada: ${r.postulantes} postulante(s)`);
+    seleccion.clear(); pintarChips(); consultarEstado();
+  } catch (e) { toast("No se pudo iniciar: " + e.message); }
+}
+$("btn-sel").onclick = () => lanzar({carpetas: [...seleccion]});
+$("btn-todos").onclick = () => {
+  if (confirm(`¿Revisar a todos los postulantes (${postulantes.length})? Los ya revisados cuyos archivos no cambiaron se toman del historial.`))
+    lanzar({todos: true});
+};
+$("btn-cancelar").onclick = async () => {
+  if (activo && confirm("¿Cancelar la revisión en curso?")) { try { await api(`/api/trabajos/${activo}/cancelar`, {method: "POST"}); } catch (e) { toast(e.message); } }
+};
+
+// ------------------------------------------------ estado y progreso
+const FASES = {"en_cola": "En cola", "esperando_recursos": "Esperando recursos", "procesando": "Procesando"};
+const mmss = (s) => { s = Math.max(0, Math.round(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+let consultando = false;
+async function consultarEstado() {
+  if (consultando) return;  // no se encadenan consultas si una anterior sigue en curso
+  consultando = true;
+  try { await consultarEstadoUnaVez(); } finally { consultando = false; }
+}
+async function consultarEstadoUnaVez() {
+  let e;
+  try { e = await api("/api/estado"); } catch (err) { $("texto-gpu").textContent = "visor desconectado"; return; }
+  if (e.gpu) {
+    const libre = e.gpu.vram_libre_gb;
+    $("texto-gpu").textContent = `GPU: ${libre.toFixed(1)} de ${e.gpu.vram_total_gb.toFixed(1)} GB libres`;
+    $("punto").classList.toggle("ocupado", libre < 4.5);
+  } else $("texto-gpu").textContent = "GPU no disponible";
+  const a = e.actual;
+  const habiaActivo = activo;
+  activo = a ? a.id : null;
+  $("btn-todos").disabled = !!activo; pintarChips();
+  $("estado-cola").textContent = a ? `${FASES[a.estado] || a.estado}${e.en_cola ? ` · ${e.en_cola} en cola` : ""}` : "sin revisiones en curso";
+  $("progreso").style.display = a ? "block" : "none";
+  if (a) {
+    const pct = a.total ? Math.round(100 * a.hechos / a.total) : (a.estado === "procesando" ? 5 : 0);
+    $("barra").style.width = pct + "%";
+    $("fase").textContent = `${FASES[a.estado] || a.estado}: ${a.fase || ""}`;
+    let tiempo = `transcurrido ${mmss(a.transcurrido_s)}`;
+    if (a.inicio_proceso_s && a.hechos > 20 && a.hechos < a.total) {   // estimación por el ritmo observado
+      tiempo += ` · faltan ~${mmss(a.inicio_proceso_s / a.hechos * (a.total - a.hechos))}`;
+    }
+    $("detalle-prog").textContent = (a.total ? `${a.hechos}/${a.total} páginas · ${a.postulantes} postulante(s)` + (a.desde_cache ? ` · ${a.desde_cache} desde caché` : "")
+      : (a.mensaje || `${a.postulantes} postulante(s)`)) + ` · ${tiempo}`;
+  }
+  if (!estadoInicial) {  // primera consulta: solo se toma como punto de partida
+    estadoInicial = true;
+    ultimoTerminado = e.ultimo_terminado;
+    return;
+  }
+  if (e.ultimo_terminado && e.ultimo_terminado !== ultimoTerminado) {
+    // terminó una revisión: se refresca todo y se muestra esa revisión
+    ultimoTerminado = e.ultimo_terminado;
+    toast("Revisión terminada: resultados actualizados");
+    await cargarTodo(e.ultimo_terminado);
+  } else if (habiaActivo && !activo) {
+    // terminó sin éxito (cancelada o con error): se refresca el historial para ver el motivo
+    toast("La revisión no terminó: vea el historial");
+    await cargarTodo();
+  }
+}
+
+// ------------------------------------------------ resumen
+async function cargarHistorial(seleccionar, hs) {
+  hs = hs || await api("/api/trabajos");
+  $("historial").innerHTML = hs.map((h) => `<tr><td>${esc(h.fecha.replace("T", " "))}</td><td>${h.tipo === "todos" ? "Todos" : "Selección"}</td>
+    <td>${h.n_postulantes}</td><td>${h.procesados ?? ""}</td><td>${h.desde_cache ?? ""}</td>
+    <td><span class="badge ${h.estado === "terminado" ? "AUTÉNTICO" : h.estado === "error" ? "FALSIFICADO" : "OBSERVADO"}">${esc(h.estado)}</span>
+    ${h.mensaje && h.estado !== "terminado" ? `<div style="color:var(--suave);font-size:12px">${esc(h.mensaje)}</div>` : ""}</td>
+    <td>${h.duracion_s != null ? Math.round(h.duracion_s) + " s" : ""}</td>
+    <td>${h.estado === "terminado" ? `<a href="/api/excel/${esc(h.id)}">Descargar</a>` : ""}</td></tr>`).join("")
+    || '<tr><td colspan="8" class="vacio">Aún no hay revisiones</td></tr>';
+  const sel = $("alcance"), actual = seleccionar || sel.value;
+  sel.innerHTML = '<option value="acumulado">Todo lo revisado (acumulado)</option>' + hs.filter((h) => h.estado === "terminado")
+    .map((h) => `<option value="${esc(h.id)}">Revisión ${esc(h.fecha.replace("T", " "))} (${h.n_postulantes} post.)</option>`).join("");
+  sel.value = [...sel.options].some((o) => o.value === actual) ? actual : "acumulado";
+}
+
+async function cargarResumen(datos) {
+  resumen = datos || await api(`/api/resumen?trabajo=${encodeURIComponent($("alcance").value)}`);
+  const v = resumen.veredictos, ap = resumen.aptitud;
+  const kpi = (val, et, c) => `<div class="kpi"><div class="v" style="color:${c || "var(--texto)"}">${val ?? 0}</div><div class="e">${et}</div></div>`;
+  $("kpis").innerHTML = kpi(resumen.revisados, "Postulantes revisados") + kpi(v["FALSIFICADO"], "Con algún documento falsificado", "var(--rojo)")
+    + kpi(v["OBSERVADO"], "Observados (revisión humana)", "var(--amar)") + kpi(v["DESACTUALIZADO"], "Desactualizados", "var(--azul)")
+    + kpi(v["AUTÉNTICO"], "Auténticos", "var(--verde)") + kpi(ap["APTO"], "Aptos para el puesto", "var(--verde)");
+  barras($("por-tipo"), resumen.por_tipo);
+  barras($("por-formato"), resumen.por_formato);
+  pintarTabla();
+}
+
+function barras(cont, datos) {
+  const filas = Object.entries(datos);
+  if (!filas.length) { cont.innerHTML = '<div class="vacio">Sin datos</div>'; return; }
+  const max = Math.max(...filas.map(([, d]) => d.total));
+  const colores = [["FALSIFICADO", "var(--rojo)"], ["OBSERVADO", "var(--amar)"], ["DESACTUALIZADO", "var(--azul)"], ["AUTÉNTICO", "var(--verde)"]];
+  cont.innerHTML = filas.sort((a, b) => ((b[1].FALSIFICADO || 0) + (b[1].OBSERVADO || 0)) - ((a[1].FALSIFICADO || 0) + (a[1].OBSERVADO || 0)))
+    .map(([nombre, d]) => {
+      const segs = colores.map(([k, c]) => d[k] ? `<div class="seg" title="${k}: ${d[k]}" style="width:${100 * d[k] / max}%;background:${c}"></div>` : "").join("");
+      return `<div class="linea"><span>${esc(nombre)}</span><div class="pista">${segs}</div>
+        <span class="n">${d.FALSIFICADO || 0} falsos · ${d.OBSERVADO || 0} obs.</span></div>`;
+    }).join("");
+}
+
+function pintarTabla() {
+  if (!resumen) return;
+  const f = $("filtro").value, q = sinTildes($("buscar-tabla").value.trim());
+  let filas = resumen.personas.filter((p) => {
+    if (f === "diferencias" && !(p.falsificados || p.observados)) return false;
+    if (["FALSIFICADO", "OBSERVADO", "DESACTUALIZADO", "NO LEGIBLE", "NO VÁLIDO"].includes(f) && p.veredicto !== f
+        && !(p.problemas || []).some((x) => x.veredicto === f)) return false;
+    if (["NO APTO", "INCOMPLETO"].includes(f) && p.aptitud !== f) return false;
+    return !q || sinTildes(p.carpeta).includes(q) || (p.dni || "").includes(q);
+  });
+  filas.sort((a, b) => { const x = a[orden.col], y = b[orden.col]; return (x > y ? 1 : x < y ? -1 : 0) * orden.dir; });
+  $("conteo-tabla").textContent = `${filas.length} de ${resumen.personas.length}`;
+  $("tabla").innerHTML = filas.slice(0, 1500).map((p) => `<tr class="persona" data-c="${esc(p.carpeta)}">
+      <td>${esc(p.carpeta)}</td><td>${esc(p.dni)}</td><td>${p.documentos}</td>
+      <td>${p.falsificados ? `<b style="color:var(--rojo)">${p.falsificados}</b>` : 0}</td>
+      <td>${p.observados ? `<b style="color:var(--amar)">${p.observados}</b>` : 0}</td>
+      <td>${p.problemas.map((d) => `<span class="doc-tag ${cls(d.veredicto)}" title="${esc(d.archivo)}">${esc(d.tipo)} · ${esc(d.formato)}</span>`).join("") || '<span style="color:var(--suave)">—</span>'}</td>
+      <td><span class="badge ${cls(p.veredicto)}">${esc(p.veredicto)}</span></td>
+      <td><span class="badge ${cls(p.aptitud)}">${esc(p.aptitud)}</span></td></tr>`).join("")
+    || `<tr><td colspan="8" class="vacio">${!resumen.revisados ? "Aún no hay revisiones: busque postulantes arriba o use «Revisar todos»."
+      : f === "diferencias" ? `Ningún postulante de esta vista tiene documentos falsos u observados
+          (${resumen.personas.length} sin diferencias). <a href="#" id="ver-todos">Ver todos</a>`
+      : "No hay postulantes con este filtro"}</td></tr>`;
+  $("tabla").querySelectorAll("tr.persona").forEach((tr) => tr.onclick = () => verDetalle(tr.dataset.c));
+  if ($("ver-todos")) $("ver-todos").onclick = (ev) => { ev.preventDefault(); $("filtro").value = "todos"; pintarTabla(); };
+}
+document.querySelectorAll("th[data-col]").forEach((th) => th.onclick = () => {
+  orden = {col: th.dataset.col, dir: orden.col === th.dataset.col ? -orden.dir : -1}; pintarTabla();
+});
+$("filtro").onchange = pintarTabla;
+$("buscar-tabla").oninput = pintarTabla;
+$("alcance").onchange = cargarResumen;
+$("btn-excel").onclick = () => { location.href = `/api/excel/${encodeURIComponent($("alcance").value)}`; };
+
+// ------------------------------------------------ detalle
+async function verDetalle(carpeta) {
+  const d = await api(`/api/persona/${encodeURIComponent(carpeta)}`);
+  const p = d.persona;
+  const det = $("detalle");
+  det.style.display = "block";
+  det.innerHTML = `<h2>Detalle del postulante</h2>
+    <div class="fila" style="justify-content:space-between"><div><b style="font-size:16px">${esc(p.carpeta)}</b>
+      <span style="color:var(--suave)">· RUT ${esc(p.dni || "—")} ${p.declarado ? "" : "(no declarado)"} · cargo ${esc(p.puesto || "—")} · revisado ${esc(d.fecha.replace("T", " "))}</span></div>
+      <div class="fila"><span class="badge ${cls(p.veredicto)}">${esc(p.veredicto)}</span><span class="badge ${cls(p.aptitud)}">${esc(p.aptitud)}</span>
+      <button id="cerrar-det">Cerrar</button></div></div>
+    ${p.motivos_aptitud.length ? `<ul class="motivos">${p.motivos_aptitud.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : ""}
+    ${d.documentos.map((doc, i) => `<div class="doc">
+      <h3><span class="badge ${cls(doc.veredicto)}">${esc(doc.veredicto)}</span>${esc(doc.tipo)}
+        <span class="pill">${esc(doc.formato)}</span><span style="color:var(--suave);font-weight:400">${esc(doc.archivo)}</span>
+        ${doc.emision ? `<span class="pill">emitido ${esc(doc.emision)}</span>` : ""}</h3>
+      ${doc.motivos.length ? `<ul class="motivos">${doc.motivos.slice(0, 8).map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : ""}
+      ${doc.campos.length ? `<div class="tabla-wrap" style="max-height:260px;margin-top:8px"><table><thead><tr><th>Campo</th><th>Dato oficial (JSON)</th><th>Leído en el documento</th><th>Estado</th><th>Motivo</th></tr></thead><tbody>
+        ${doc.campos.map((c) => `<tr><td>${esc(c.zona)}</td><td>${esc(c.oficial)}</td><td>${esc(c.postulante)}</td>
+          <td><span class="badge ${cls(c.estado)}">${esc(c.estado)}</span></td><td style="color:var(--suave)">${esc(c.motivo)}</td></tr>`).join("")}
+        </tbody></table></div>` : ""}
+      ${doc.filas_hoja_vida ? `<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--acento)">Licencias y anotaciones leídas</summary>
+        <div class="tabla-wrap" style="max-height:220px"><table><thead><tr><th>Registro</th><th>Clase</th><th>Fecha</th><th>Municipalidad / detalle</th></tr></thead><tbody>
+        ${doc.filas_hoja_vida.licencias.map((l) => `<tr><td>${esc(l.Registro)}</td><td>${esc(l.Clase)}</td><td>${esc(l.fecha_txt)}</td><td>${esc(l.Municipalidad)}</td></tr>`).join("")}
+        ${doc.filas_hoja_vida.anotaciones.map((a) => `<tr><td colspan="2">${esc(a.Tipo)}</td><td>${esc(a["Fecha anotación"])}</td><td>${esc((a.Detalle || "").slice(0, 160))}</td></tr>`).join("")}
+        <tr><td colspan="4">Antecedentes: ${esc(Object.entries(doc.filas_hoja_vida.antecedentes || {}).map(([k, v]) => k + " " + v).join(" · ") || "no leídos")}</td></tr>
+        </tbody></table></div></details>` : ""}
+      <details style="margin-top:8px" data-i="${i}"><summary style="cursor:pointer;color:var(--acento)">Ver documento y dato oficial</summary>
+        <div class="miniaturas"><figure><figcaption>Documento presentado</figcaption>
+          <img loading="lazy" data-src="/api/archivo_postulante/${encodeURIComponent(p.carpeta)}/${encodeURIComponent(doc.archivo_ver || doc.archivo)}" alt="Documento del postulante"></figure>
+        <figure><figcaption>Dato oficial (webscraping)</figcaption>${doc.archivo_oficial
+          ? `<a target="_blank" href="/api/oficial/${encodeURIComponent(p.carpeta)}/${encodeURIComponent(doc.archivo_oficial)}">Abrir ${esc(doc.archivo_oficial)}</a>` : '<div class="vacio">Sin dato oficial</div>'}</figure></div>
+      </details></div>`).join("")}`;
+  det.querySelectorAll("details").forEach((dt) => dt.addEventListener("toggle", () => {
+    if (dt.open) dt.querySelectorAll("img[data-src]").forEach((im) => { if (!im.src) im.src = im.dataset.src; });
+  }));
+  $("cerrar-det").onclick = () => det.style.display = "none";
+  det.scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+// ------------------------------------------------ inicio
+async function cargarTodo(alcance) {
+  // las tres consultas en paralelo
+  const vista = alcance || $("alcance").value || "acumulado";
+  const [ps, hs, rs] = await Promise.all([api("/api/postulantes"), api("/api/trabajos"),
+    api(`/api/resumen?trabajo=${encodeURIComponent(vista)}`)]);
+  postulantes = ps;
+  await cargarHistorial(vista, hs);
+  await cargarResumen($("alcance").value === vista ? rs : null);
+}
+cargarTodo().then(() => { consultarEstado(); setInterval(consultarEstado, 2000); })
+  .catch((e) => toast("Error al cargar: " + e.message));
+</script>
+</body>
+</html>

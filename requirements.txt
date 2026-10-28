@@ -1,0 +1,40 @@
+# Verificación documental de postulantes (Chile)
+# Entorno probado: Windows 11, Python 3.10, NVIDIA RTX 5070 Ti (Blackwell, sm_120)
+#
+# Instalación:
+#   pip install -r requirements.txt
+#
+# PyTorch con CUDA 13.0 se descarga del índice oficial de PyTorch (la línea siguiente lo habilita).
+# Sin GPU NVIDIA: quitar el sufijo "+cu130" de torch/torchvision y la línea --extra-index-url;
+# el pipeline funciona en CPU con `python -m verificacion.chile.pipeline_cl --cpu` (más lento).
+--extra-index-url https://download.pytorch.org/whl/cu130
+
+# --- Aprendizaje profundo (OCR y entrenamiento)
+torch==2.11.0+cu130
+torchvision==0.26.0+cu130
+python-doctr==1.0.1          # detección (DBNet) + reconocimiento (PARSeq)
+
+# --- Documentos e imágenes
+pymupdf==1.28.2              # lectura de PDF, texto nativo, fuentes, metadatos, render
+opencv-python==4.14.0.94     # alineación con la plantilla (ORB/SIFT + homografía)
+numpy==2.2.6
+pillow>=10.0
+pillow-heif>=0.18            # fotos HEIC de iPhone
+zxing-cpp==3.1.1             # lectura de códigos QR
+
+# --- Comparación, reglas y reportes
+rapidfuzz==3.14.5            # similitud de texto y distancia de edición
+openpyxl==3.1.5              # reportes Excel y registro de postulantes
+pyyaml>=6.0                  # requisitos por cargo (config/requisitos_cl.yaml)
+pandas>=2.0                  # tablas del notebook
+
+# --- Visores web (visor/, visor_pruebas/)
+fastapi==0.143.2
+uvicorn==0.54.0
+
+# --- Pruebas automáticas (python -m pytest tests)
+pytest>=8.0
+httpx>=0.27                  # cliente de pruebas de FastAPI
+
+# --- Generación de datos sintéticos (scripts/)
+qrcode==8.2

@@ -1,0 +1,33 @@
+# Requisitos de aptitud para los postulantes (documentos chilenos). Se evalúan con los DATOS OFICIALES (JSON)
+# de los documentos presentados que resultaron auténticos. Valores por defecto propuestos: ajústalos aquí.
+
+# Hoja de Vida del Conductor: antigüedad máxima de la emisión presentada (días)
+dias_vigencia_hoja_vida: 30
+
+licencia:
+  todas: [D]            # clases obligatorias
+  alguna: [A2, A4]      # al menos una de estas clases profesionales
+  vigente: true         # la última renovación de cada clase exigida debe estar dentro de su periodo de control
+  anios_control_profesional: 4   # clases A1-A5
+  anios_control_otras: 6
+
+antecedentes:
+  sin_suspensiones_anios: 2      # sin suspensiones ni infracciones gravísimas en los últimos N años
+  rnc_sin_antecedentes: true     # Registro Nacional de Conductores: "SIN ANTECEDENTES"
+
+ameco:
+  estado: APROBADO
+  vigente: true                  # fecha de expiración posterior a hoy (vencido -> NO APTO)
+
+# Certificado AMECO que corresponde a cada cargo: texto que debe contener "Operador Equipo" (vacío = cualquiera)
+puesto_por_defecto: Operador de Grúa Móvil
+puestos:
+  Operador de Grúa Móvil: [Grúa Móvil]
+  Operador de Grúa Horquilla: [Grúa Horquilla]
+  Operador de Camión Pluma: [Camión Pluma]
+  Operador de Manipulador Telescópico: [Manipulador Telescópico]
+  Operador de Equipos de Izaje: [Grúa, Camión Pluma, Manipulador]
+  Rigger: []
+
+# Documentos que no sirven para evaluar
+copia_hoja_vida: INCOMPLETO       # versión "COPIA, no válida como certificado": se pide el original

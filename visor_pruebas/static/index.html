@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor de pruebas</title>
+<style>
+  :root {
+    --fondo: #f4f5f7; --panel: #ffffff; --texto: #1d2330; --suave: #5d6677; --borde: #d9dde4; --acento: #1a4f9c;
+    --ok: #1e7b46; --ok-f: #e3f3e9; --mal: #b42318; --mal-f: #fde8e6; --rev: #9a6100; --rev-f: #fff3dc;
+    --info: #2f5aa8; --info-f: #e6eefb; --gris-f: #eceef2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #14171d; --panel: #1d2129; --texto: #e7e9ee; --suave: #a3abb9; --borde: #343a46; --acento: #7aa7ec;
+      --ok: #6fd39b; --ok-f: #183526; --mal: #ff8a7f; --mal-f: #3e1d1a; --rev: #f1bf62; --rev-f: #3a2e15;
+      --info: #9bbcf2; --info-f: #1d2a42; --gris-f: #2a2f39;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font: 15px/1.45 system-ui, "Segoe UI", sans-serif; }
+  header { background: var(--panel); border-bottom: 1px solid var(--borde); padding: 12px 20px; display: flex;
+           align-items: center; justify-content: space-between; gap: 12px; }
+  header h1 { font-size: 18px; margin: 0; }
+  main { max-width: 1100px; margin: 0 auto; padding: 18px 16px 60px; }
+  .panel { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: var(--suave); margin-bottom: 4px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 7px; font: inherit;
+                  background: var(--panel); color: var(--texto); }
+  .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .zonas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 14px; }
+  .zona { border: 2px dashed var(--borde); border-radius: 10px; padding: 14px; min-height: 140px; }
+  .zona.encima { border-color: var(--acento); background: var(--info-f); }
+  .zona h3 { margin: 0 0 4px; font-size: 14px; }
+  .zona p { margin: 0 0 8px; color: var(--suave); font-size: 13px; }
+  .lista { list-style: none; padding: 0; margin: 8px 0 0; }
+  .lista li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-top: 1px solid var(--borde);
+              font-size: 13px; word-break: break-all; }
+  button { font: inherit; border-radius: 7px; border: 1px solid var(--borde); background: var(--panel); color: var(--texto);
+           padding: 7px 14px; cursor: pointer; }
+  button.principal { background: var(--acento); color: #fff; border-color: var(--acento); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.x { padding: 0 8px; border: none; color: var(--mal); }
+  .avisos div { padding: 8px 10px; border-radius: 7px; margin-top: 8px; font-size: 13px; }
+  .error { background: var(--mal-f); color: var(--mal); }
+  .adv { background: var(--rev-f); color: var(--rev); }
+  .nota { color: var(--suave); font-size: 12px; margin-top: 10px; }
+  .barra { height: 8px; background: var(--gris-f); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .barra div { height: 100%; background: var(--acento); width: 0; transition: width .3s; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .v-AUTÉNTICO, .v-APTO, .v-ENTREGADO { background: var(--ok-f); color: var(--ok); }
+  .v-FALSIFICADO, .v-NO-APTO { background: var(--mal-f); color: var(--mal); }
+  .v-OBSERVADO, .v-NO-LEGIBLE, .v-INCOMPLETO, .v-NO-EVALUABLE, .v-DOCUMENTO-FALTANTE, .v-NO-IDENTIFICADO { background: var(--rev-f); color: var(--rev); }
+  .v-DESACTUALIZADO, .v-NO-VÁLIDO { background: var(--info-f); color: var(--info); }
+  .v-NO-RECONOCIDO, .v-SIN-DATO-OFICIAL, .v-SIN-LECTURA { background: var(--gris-f); color: var(--suave); }
+  .v-ALTA { background: var(--ok-f); color: var(--ok); }
+  .v-MEDIA { background: var(--rev-f); color: var(--rev); }
+  .v-BAJA { background: var(--mal-f); color: var(--mal); }
+  #nombres, #apellidos, #cargo { text-transform: uppercase; }
+  pre.json { background: var(--gris-f); border-radius: 7px; padding: 10px; font-size: 12px; overflow-x: auto;
+             max-height: 360px; white-space: pre-wrap; word-break: break-word; }
+  .aviso-sin { background: var(--gris-f); border-radius: 7px; padding: 8px 10px; font-size: 13px; margin-top: 8px; }
+  a.boton { display: inline-block; padding: 6px 12px; border-radius: 7px; background: var(--acento); color: #fff;
+            text-decoration: none; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--borde); vertical-align: top; }
+  th { color: var(--suave); font-weight: 600; }
+  .tabla { overflow-x: auto; }
+  .cabeza { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .cabeza h3 { margin: 0; font-size: 16px; }
+  .datos { color: var(--suave); font-size: 13px; margin: 4px 0 10px; }
+  details { border-top: 1px solid var(--borde); padding: 8px 0; }
+  summary { cursor: pointer; font-size: 14px; }
+  ul.motivos { margin: 6px 0; padding-left: 20px; font-size: 13px; }
+  .oculto { display: none !important; }
+  #login { max-width: 380px; margin: 80px auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Visor de pruebas — verificación de documentos</h1>
+  <button id="salir" class="oculto">Cerrar sesión</button>
+</header>
+<main>
+  <section id="login" class="panel oculto">
+    <h2>Ingreso</h2>
+    <label for="clave">Contraseña</label>
+    <input id="clave" type="password" autocomplete="current-password">
+    <div class="avisos" id="login-aviso"></div>
+    <p><button class="principal" id="entrar">Entrar</button></p>
+  </section>
+
+  <section id="app" class="oculto">
+    <div class="panel">
+      <h2>1. Postulante</h2>
+      <div class="rejilla">
+        <div><label for="nombres">Nombres * (1 a 3)</label><input id="nombres" placeholder="ALEJANDRA BÁRBARA"></div>
+        <div><label for="apellidos">Apellidos * (1 o 2)</label><input id="apellidos" placeholder="ALARCÓN SEPÚLVEDA"></div>
+        <div><label for="rut">RUT *</label><input id="rut" placeholder="12.345.678-5"></div>
+        <div><label for="fnac">Fecha de nacimiento</label><input id="fnac" type="date"></div>
+        <div><label for="cargo">Cargo al que postula</label><input id="cargo" list="cargos" autocomplete="off"
+             placeholder="Escriba o elija"><datalist id="cargos"></datalist></div>
+      </div>
+      <div class="avisos" id="avisos-id"></div>
+      <p class="nota">Si no ingresa la fecha de nacimiento, se toma del JSON de la Hoja de Vida (si lo sube).</p>
+
+      <div class="zonas">
+        <div class="zona" id="zona-post">
+          <h3>2. Documentos del postulante</h3>
+          <p>Hoja de Vida del Conductor y/o certificados AMECO (Rev.02, Rev.03). PDF o fotos (JPG, PNG, HEIC, WEBP, TIFF).
+             Los que no suba figurarán como <b>documento faltante</b>.</p>
+          <input type="file" id="f-post" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp,.tif,.tiff,.bmp">
+          <ul class="lista" id="l-post"></ul>
+        </div>
+        <div class="zona" id="zona-ofi">
+          <h3>3. Datos oficiales (JSON del webscraping) — opcional</h3>
+          <p>El JSON de la Hoja de Vida y/o de cada certificado AMECO; el tipo se reconoce por su contenido. Un documento
+             sin su JSON <b>no se verifica</b>: solo se extraen sus datos (SIN DATO OFICIAL).</p>
+          <input type="file" id="f-ofi" multiple accept=".json,application/json">
+          <ul class="lista" id="l-ofi"></ul>
+        </div>
+      </div>
+      <div class="avisos" id="avisos-env"></div>
+      <p><button class="principal" id="verificar">Verificar</button></p>
+      <div id="progreso" class="oculto"><div id="p-texto" class="nota"></div><div class="barra"><div id="p-barra"></div></div></div>
+      <p class="nota">Privacidad: los archivos se procesan en memoria y se descartan al terminar; no se guardan en
+        el equipo. Los resultados quedan solo en esta sesión (se borran al cerrar sesión, con "Borrar resultados" o tras 8 h sin uso).</p>
+    </div>
+
+    <div class="panel">
+      <div class="cabeza"><h2>Resultados de esta sesión</h2><button id="borrar">Borrar resultados</button></div>
+      <div id="resultados"><p class="nota">Aún no hay verificaciones.</p></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const chip = (v) => `<span class="chip v-${esc(String(v).replace(/ /g, "-"))}">${esc(v)}</span>`;
+const archivos = {post: [], ofi: []};
+let limites = {archivos: 10, mb_archivo: 25, jsons: 10, mb_json: 2};
+
+async function api(url, opciones = {}) {
+  const r = await fetch(url, {credentials: "same-origin", ...opciones});
+  if (r.status === 401) { mostrarLogin(); throw new Error("Inicie sesión"); }
+  const datos = r.headers.get("content-type")?.includes("json") ? await r.json() : null;
+  if (!r.ok) throw new Error(datos?.detail || `Error ${r.status}`);
+  return datos;
+}
+const post = (url, cuerpo) => api(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cuerpo)});
+
+function mostrarLogin() { $("login").classList.remove("oculto"); $("app").classList.add("oculto"); $("salir").classList.add("oculto"); }
+async function iniciar() {
+  try {
+    const s = await api("/api/sesion");
+    limites = s.limites;
+    $("cargos").innerHTML = s.cargos.map((c) => `<option value="${esc(c)}">`).join("");
+    if (!$("cargo").value) $("cargo").value = s.cargo_por_defecto;
+    $("login").classList.add("oculto"); $("app").classList.remove("oculto"); $("salir").classList.remove("oculto");
+    cargarResultados();
+  } catch (e) { mostrarLogin(); }
+}
+$("entrar").onclick = async () => {
+  $("login-aviso").innerHTML = "";
+  try { await post("/api/login", {clave: $("clave").value}); $("clave").value = ""; iniciar(); }
+  catch (e) { $("login-aviso").innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+};
+$("clave").onkeydown = (e) => { if (e.key === "Enter") $("entrar").click(); };
+$("salir").onclick = async () => { await post("/api/logout", {}); location.reload(); };
+
+// ---------- identidad (validación mientras se escribe)
+let tValidar;
+function identidad() {
+  return {nombres: $("nombres").value, apellidos: $("apellidos").value, rut: $("rut").value,
+          fecha_nacimiento: $("fnac").value, cargo: $("cargo").value};
+}
+function validar() {
+  clearTimeout(tValidar);
+  tValidar = setTimeout(async () => {
+    const d = identidad();
+    if (!d.nombres && !d.apellidos && !d.rut) { $("avisos-id").innerHTML = ""; return; }
+    try {
+      const r = await post("/api/validar", d);
+      $("avisos-id").innerHTML = r.errores.map((x) => `<div class="error">${esc(x)}</div>`).join("") +
+                                 r.advertencias.map((x) => `<div class="adv">⚠ ${esc(x)}</div>`).join("");
+    } catch (e) { /* sin sesión */ }
+  }, 400);
+}
+["nombres", "apellidos", "rut", "fnac", "cargo"].forEach((id) => $(id).addEventListener("input", validar));
+// nombres, apellidos y cargo siempre en mayúsculas (sin mover el cursor)
+["nombres", "apellidos", "cargo", "rut"].forEach((id) => $(id).addEventListener("input", (e) => {
+  const el = e.target, a = el.selectionStart, b = el.selectionEnd, v = el.value.toUpperCase();
+  if (v !== el.value) { el.value = v; el.setSelectionRange(a, b); }
+}));
+
+// ---------- archivos
+function agregar(tipo, lista) {
+  const max = tipo === "post" ? limites.archivos : limites.jsons, mb = tipo === "post" ? limites.mb_archivo : limites.mb_json;
+  const avisos = [];
+  for (const f of lista) {
+    if (f.size > mb * 1048576) { avisos.push(`'${f.name}' supera ${mb} MB.`); continue; }
+    if (archivos[tipo].length >= max) { avisos.push(`Máximo ${max} archivos en esta zona.`); break; }
+    archivos[tipo].push(f);
+  }
+  $("avisos-env").innerHTML = avisos.map((x) => `<div class="error">${esc(x)}</div>`).join("");
+  pintar(tipo);
+}
+function pintar(tipo) {
+  $(`l-${tipo}`).innerHTML = archivos[tipo].map((f, i) =>
+    `<li><span>${esc(f.name)} <span class="nota">(${(f.size / 1048576).toFixed(1)} MB)</span></span>` +
+    `<button class="x" data-t="${tipo}" data-i="${i}" title="Quitar">✕</button></li>`).join("");
+}
+document.addEventListener("click", (e) => {
+  if (e.target.matches("button.x")) { archivos[e.target.dataset.t].splice(+e.target.dataset.i, 1); pintar(e.target.dataset.t); }
+});
+for (const [tipo, zona, input] of [["post", "zona-post", "f-post"], ["ofi", "zona-ofi", "f-ofi"]]) {
+  $(input).onchange = (e) => { agregar(tipo, e.target.files); e.target.value = ""; };
+  $(zona).ondragover = (e) => { e.preventDefault(); $(zona).classList.add("encima"); };
+  $(zona).ondragleave = () => $(zona).classList.remove("encima");
+  $(zona).ondrop = (e) => { e.preventDefault(); $(zona).classList.remove("encima"); agregar(tipo, e.dataTransfer.files); };
+}
+const base64 = (f) => new Promise((ok, mal) => {
+  const r = new FileReader();
+  r.onload = () => ok(r.result.split(",", 2)[1] || "");
+  r.onerror = () => mal(new Error(`No se pudo leer '${f.name}'`));
+  r.readAsDataURL(f);
+});
+
+// ---------- verificación
+$("verificar").onclick = async () => {
+  $("avisos-env").innerHTML = "";
+  if (!archivos.post.length) { $("avisos-env").innerHTML = `<div class="error">Suba al menos un documento del postulante.</div>`; return; }
+  $("verificar").disabled = true;
+  progreso("Preparando archivos…", 0, 0);
+  try {
+    const cuerpo = {...identidad(),
+      postulante: await Promise.all(archivos.post.map(async (f) => ({nombre: f.name, base64: await base64(f)}))),
+      oficiales: await Promise.all(archivos.ofi.map(async (f) => ({nombre: f.name, base64: await base64(f)})))};
+    progreso("Enviando…", 0, 0);
+    const {id} = await post("/api/verificar", cuerpo);
+    await seguir(id);
+  } catch (e) {
+    $("avisos-env").innerHTML = `<div class="error">${esc(e.message)}</div>`;
+  } finally {
+    $("verificar").disabled = false; $("progreso").classList.add("oculto");
+  }
+};
+function progreso(texto, hechos, total) {
+  $("progreso").classList.remove("oculto");
+  $("p-texto").textContent = texto + (total ? ` (${hechos}/${total})` : "");
+  $("p-barra").style.width = total ? `${Math.round(100 * hechos / total)}%` : "15%";
+}
+async function seguir(id) {
+  for (;;) {
+    const t = await api(`/api/trabajo/${id}`);
+    if (t.estado === "terminado") break;
+    if (t.estado === "error") throw new Error(t.mensaje);
+    progreso((t.en_cola_antes ? `En cola (${t.en_cola_antes} antes). ` : "") + (t.fase || "") + (t.mensaje ? ` — ${t.mensaje}` : ""), t.hechos, t.total);
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  archivos.post = []; archivos.ofi = []; pintar("post"); pintar("ofi");
+  await cargarResultados();
+}
+
+// ---------- resultados
+async function cargarResultados() {
+  const rs = await api("/api/resultados");
+  $("resultados").innerHTML = rs.length ? rs.map(tarjeta).join("") : `<p class="nota">Aún no hay verificaciones.</p>`;
+}
+function tarjeta(r) {
+  const esperados = r.esperados.map((e) => `<tr><td>${esc(e.documento)}</td><td>${chip(e.estado)}${e.nota ? `<div class="nota">${esc(e.nota)}</div>` : ""}</td>
+      <td>${e.veredictos.map(chip).join(" ") || "—"}</td><td>${e.archivos.map(esc).join("<br>") || "—"}</td></tr>`).join("");
+  const extra = r.documentos.filter((d) => !/^(hoja_vida|ameco)/.test(d.tipo));
+  const docs = r.documentos.map((d) => `<details><summary>${chip(d.veredicto)} ${esc(d.archivo)}
+      <span class="nota">· ${esc(d.formato || "")}${d.archivo_oficial ? " · comparado con " + esc(d.archivo_oficial) : ""}</span></summary>
+      ${d.motivos.length ? `<ul class="motivos">${d.motivos.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="nota">Sin observaciones.</p>`}
+      ${d.campos.length ? `<div class="tabla"><table><tr><th>Campo</th><th>Dato oficial (JSON)</th><th>Leído en el documento</th><th>Estado</th><th>Motivo</th></tr>
+        ${d.campos.map((c) => `<tr><td>${esc(c.zona)}</td><td>${esc(c.oficial)}</td><td>${esc(c.postulante)}</td><td>${esc(c.estado)}</td><td>${esc(c.motivo)}</td></tr>`).join("")}
+        </table></div>` : ""}
+      ${d.campos_extraidos.length ? `<p class="nota"><b>Datos extraídos del documento</b> · ${esc(d.json_extraido._control.metodo)}
+        · resumen: ${Object.entries(d.json_extraido._control.resumen_confianza).filter(([, n]) => n)
+          .map(([k, n]) => `${n} ${esc(k)}`).join(", ")}</p>
+        <div class="tabla"><table><tr><th>Campo</th><th>Valor leído</th><th>Confianza</th></tr>
+        ${d.campos_extraidos.map((c) => `<tr><td>${esc(c.campo)}</td><td>${esc(c.valor)}</td>
+          <td>${c.nivel ? chip(c.nivel) : ""} ${c.confianza !== undefined && c.nivel !== "SIN LECTURA" ? `<span class="nota">${Math.round(c.confianza * 100)}%</span>` : ""}</td></tr>`).join("")}
+        </table></div>
+        <p class="nota">${esc(d.json_extraido._control.escala_confianza)}</p>` : ""}</details>`).join("");
+  return `<div class="panel">
+    <div class="cabeza"><h3>${esc(r.etiqueta)}</h3><span>${chip(r.veredicto)} ${chip(r.aptitud)}</span></div>
+    <div class="datos">RUT ${esc(r.rut)} · Nacimiento: ${esc(r.fecha_nacimiento || "no disponible")}
+      ${r.fecha_nacimiento_fuente && r.fecha_nacimiento_fuente !== "ingresada" ? `(${esc(r.fecha_nacimiento_fuente)})` : ""}
+      · Cargo: ${esc(r.cargo)} · ${esc(r.fecha)}</div>
+    <p><a class="boton" href="/api/zip/${esc(r.id)}">Descargar todo (.zip)</a>
+      <span class="nota">resumen, datos extraídos de cada documento (JSON)${r.sin_datos_oficiales ? "" : ", diferencias"} y reporte Excel</span></p>
+    ${r.sin_datos_oficiales ? `<div class="aviso-sin">No se subieron datos oficiales (JSON): <b>no se verificó</b> la
+      autenticidad ni la aptitud. Se entregan los datos extraídos de los documentos.</div>` : ""}
+    <div class="avisos">${r.advertencias.map((a) => `<div class="adv">⚠ ${esc(a)}</div>`).join("")}</div>
+    <div class="tabla"><table><tr><th>Documento</th><th>Estado</th><th>Dictamen</th><th>Archivo</th></tr>${esperados}
+      ${extra.map((d) => `<tr><td>Otro archivo</td><td>—</td><td>${chip(d.veredicto)}</td><td>${esc(d.archivo)}</td></tr>`).join("")}
+      ${r.no_admitidos.map((x) => `<tr><td>No admitido</td><td>—</td><td>${esc(x.motivo)}</td><td>${esc(x.archivo)}</td></tr>`).join("")}
+    </table></div>
+    <p><b>Aptitud:</b></p><ul class="motivos">${r.motivos_aptitud.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>
+    ${docs}
+  </div>`;
+}
+$("borrar").onclick = async () => {
+  if (!confirm("¿Borrar todos los resultados de esta sesión?")) return;
+  await post("/api/borrar", {}); cargarResultados();
+};
+iniciar();
+</script>
+</body>
+</html>
