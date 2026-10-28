@@ -244,7 +244,9 @@ def validar(modelo, validaciones, log):
 
 
 def vocabulario_v1():
-    """Palabras de nombres/apellidos del conjunto anterior (aparecen miles de veces: el modelo las memorizó)."""
+    """Palabras de nombres/apellidos del conjunto anterior (aparecen miles de veces: el modelo las memorizó).
+
+    Usa el generador de datos sintéticos, que no se publica en el repositorio (ver FICHA_RECONOCEDOR.md)."""
     sys.path.insert(0, str(C.ROOT))
     from scripts.sinteticos_reales import entrenamiento_ocr as E
     from scripts.sinteticos_reales import valores as V
