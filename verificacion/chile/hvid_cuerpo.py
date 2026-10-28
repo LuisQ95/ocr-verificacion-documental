@@ -6,7 +6,7 @@ import statistics
 
 from rapidfuzz import fuzz
 
-from .normalizar_cl import ABR, MESES, clave_texto, fecha, limpio
+from .normalizar_cl import ABR, MESES, clave_texto, fecha
 
 X_COLUMNA_VALORES = 195
 """Límite (pt): los encabezados de anotación empiezan a la izquierda de esto; su texto, desde ~211."""

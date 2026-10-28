@@ -124,7 +124,8 @@ def _excel(ruta, personas, documentos, meta, no_admitidos):
     ws.column_dimensions["B"].width = 90
 
     _hoja(wb.create_sheet("personas"),
-          ["Carpeta", "RUT / documento de identidad", "Identidad declarada", "Autenticidad", "Aptitud", "Motivos de aptitud", "Documentos",
+          ["Carpeta", "RUT / documento de identidad", "Identidad declarada", "Autenticidad", "Aptitud", "Motivos de aptitud",
+           "Documentos",
            "Falsificados", "Observados", "Desactualizados", "Documentos falsificados", "Puesto"],
           [[p["carpeta"], p["dni"], "SÍ" if p["declarado"] else "NO", p["veredicto"], p["aptitud"],
             " | ".join(p["motivos_aptitud"]), p["documentos"], p["falsificados"], p["observados"],

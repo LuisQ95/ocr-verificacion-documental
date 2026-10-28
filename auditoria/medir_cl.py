@@ -50,8 +50,8 @@ def main():
     ap.add_argument("--subconjunto", choices=["ajuste", "reservado"], default=None)
     ap.add_argument("--detalle", action="store_true")
     a = ap.parse_args()
-    gt = [json.loads(l) for l in open(ROOT / "ground_truth_v2" / "ground_truth.jsonl", encoding="utf-8")]
-    res = [json.loads(l) for l in open(Path(a.resultados) / "resultados.jsonl", encoding="utf-8")]
+    gt = [json.loads(l) for l in (ROOT / "ground_truth_v2" / "ground_truth.jsonl").read_text(encoding="utf-8").splitlines()]
+    res = [json.loads(l) for l in (Path(a.resultados) / "resultados.jsonl").read_text(encoding="utf-8").splitlines()]
     por_carpeta = defaultdict(list)
     for r in res:
         por_carpeta[r["carpeta"]].append(r)
@@ -107,7 +107,8 @@ def main():
     if a.detalle:
         print("\nDETALLE de errores (falsos escapados y genuinos no auténticos):")
         for g, v, r in filas:
-            mal = (g["falsificado"] and v == "AUTÉNTICO") or (not g["falsificado"] and v not in ("AUTÉNTICO", "DESACTUALIZADO", "NO VÁLIDO"))
+            mal = (g["falsificado"] and v == "AUTÉNTICO") or \
+                (not g["falsificado"] and v not in ("AUTÉNTICO", "DESACTUALIZADO", "NO VÁLIDO"))
             if mal:
                 print(f"- {g['carpeta']} | {g['documento']} | {g['subcanal']} | falso={g['falsificado']} "
                       f"({g['motivo']}/{g['tecnica']}) | escenarios={g['escenarios']} -> {v}")

@@ -106,7 +106,6 @@ def _unir_diacriticos(cajas):
     muy delgada, que se lee como basura y deja la palabra sin tilde. Esas franjas se reincorporan a
     la palabra que tienen justo debajo."""
     cajas = list(cajas)
-    resto = []
     for c in sorted(cajas, key=lambda c: c[3] - c[1]):
         if c not in cajas:
             continue

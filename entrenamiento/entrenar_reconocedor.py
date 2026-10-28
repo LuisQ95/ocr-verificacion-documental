@@ -26,7 +26,6 @@ import itertools
 import json
 import math
 import mmap
-import os
 import pickle
 import random
 import struct
@@ -313,7 +312,8 @@ def entrenar(modelo, train_partes, validaciones, args, pasos_max=None, salida=No
     train = cargador(train_partes, modelo.cfg, args.bs, args.workers, barajar=True)
     pasos_ep = len(train)
     total = pasos_max or args.epochs * pasos_ep
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=total, pct_start=0.05 if not pasos_max else 0.15)
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=total,
+                                                pct_start=0.05 if not pasos_max else 0.15)
     paso, ep0, historial, mejor = 0, 1, [], -1.0
     if checkpoint and args.reanudar and checkpoint.exists():
         e = torch.load(checkpoint, map_location="cpu", weights_only=False)
@@ -441,7 +441,10 @@ def main():
     ap.add_argument("--solo-reservadas-v1", action="store_true", help="modo evaluar: solo nombres anteriores reservados")
     args = ap.parse_args()
     prioridad_baja()
-    log = lambda s: print(s, flush=True)
+    def log(s):
+        """Imprime al instante (el registro se sigue mientras corre)."""
+        print(s, flush=True)
+
     try:
         with R.Candado("reconocedor"):
             gb = presupuesto_vram(log)
@@ -521,7 +524,7 @@ def main():
                 log(f"Terminado. Mejor exactitud en validación: {r['mejor']:.4f} -> {salida}")
     except R.RecursosInsuficientes as e:
         log(f"NO SE LANZÓ: {e}")
-        raise SystemExit(2)
+        raise SystemExit(2) from e
 
 
 if __name__ == "__main__":

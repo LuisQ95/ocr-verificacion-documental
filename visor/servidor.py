@@ -199,7 +199,7 @@ def _procesar(t):
                 t.update(mensaje=f"{e}. Se reintenta en 30 s.")
                 for _ in range(30):
                     if t.get("cancelar"):
-                        raise InterruptedError("revisión cancelada")
+                        raise InterruptedError("revisión cancelada") from e
                     time.sleep(1)
 
     t.update(estado="terminado", fase="terminado", procesados=len(pendientes), mensaje="", huella=huella)
@@ -213,7 +213,7 @@ def _ejecutar(t, pendientes, firmas):
         """Actualiza el progreso visible de la revisión."""
         t.update(fase=fase, hechos=hechos, total=total)
 
-    personas, documentos, no_admitidos, meta = verificar_lote(
+    personas, documentos, no_admitidos, _ = verificar_lote(
         pendientes, _registro(), segundo_lector=t["segundo_lector"], progreso=progreso,
         log=lambda m: t.update(mensaje=m), cancelado=lambda: t.get("cancelar", False))
     por_carpeta = defaultdict(list)

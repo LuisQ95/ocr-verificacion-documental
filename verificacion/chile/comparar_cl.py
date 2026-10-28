@@ -256,7 +256,7 @@ def _comparar_filas(doc_filas, js, emision, es_ocr, tiene_p2=True):
         return DIFERENTE, f"{que} oficial que no figura en el documento"
 
     usadas = set()
-    for i, lo in enumerate(of["licencias"]):
+    for lo in of["licencias"]:
         cand = [j for j, ld in enumerate(doc_filas["licencias"]) if j not in usadas
                 and ld["Registro"] == lo["Registro"] and N.codigo_ocr(ld["Clase"]) == N.codigo_ocr(lo["Clase"])]
         if not cand and es_ocr:
@@ -306,7 +306,8 @@ def _comparar_filas(doc_filas, js, emision, es_ocr, tiene_p2=True):
     usadas = set()
     for ao in of["anotaciones"]:
         cand = [j for j, ad in enumerate(doc_filas["anotaciones"]) if j not in usadas and
-                (ad["fecha"] == ao["fecha"] or fuzz.ratio(ad["Tipo"], ao["Tipo"]) >= 80 and fuzz.ratio(ad["Detalle"], ao["Detalle"]) >= 80)]
+                (ad["fecha"] == ao["fecha"] or fuzz.ratio(ad["Tipo"], ao["Tipo"]) >= 80
+                 and fuzz.ratio(ad["Detalle"], ao["Detalle"]) >= 80)]
         if not cand and not tiene_p2:
             cand = [j for j, ad in enumerate(doc_filas["anotaciones"]) if j not in usadas and ad["fecha"] is None
                     and fuzz.ratio(ad["Tipo"], ao["Tipo"]) >= 80 and len(ad["Detalle"]) >= 10
@@ -342,7 +343,8 @@ def _comparar_filas(doc_filas, js, emision, es_ocr, tiene_p2=True):
             bien = ad["fecha"] is not None and len(ad["Detalle"]) >= 20
             e = DUDOSO if es_ocr and (ad["conf"] < C.CONF_OCR_ALTA or not bien) else DIFERENTE
             campos.append({"zona": f"anotación {ad['Tipo'][:40]}", "oficial": "", "postulante": ad["Detalle"][:120],
-                           "estado": e, "motivo": "anotación que no existe en el registro oficial", "conf": round(ad["conf"], 3)})
+                           "estado": e, "motivo": "anotación que no existe en el registro oficial",
+                           "conf": round(ad["conf"], 3)})
 
     for reg in ("PRN", "RNC"):
         vo, vd = of["antecedentes"].get(reg, ""), doc_filas["antecedentes"].get(reg, "")
@@ -391,7 +393,8 @@ def senales_codigos(doc, valores):
         break
     for b in cod.get("barras", []):
         if folio and N.codigo(b) != folio and re.fullmatch(r"\d{12}", N.codigo(b)) and not doc.get("es_ocr"):
-            s.append(_senal("codigo_barras", "fraude", f"el código de barras ({b}) no coincide con el folio impreso ({folio})"))
+            s.append(_senal("codigo_barras", "fraude",
+                             f"el código de barras ({b}) no coincide con el folio impreso ({folio})"))
     return s
 
 
@@ -418,15 +421,16 @@ def senales_nativo(doc, plantilla):
     s = K.senales_objetos(dict(doc, objetos=objetos), plantilla)
     for x in s:
         if x["tipo"] == "anotacion" and re.search(r"'(Highlight|Underline|Squiggly)'", x["detalle"]):
-            x.update(severidad="observacion", detalle=x["detalle"].replace("agregada al PDF", "agregada al PDF después de "
-                                                                            "su emisión (marca transparente, no oculta datos)"))
+            x.update(severidad="observacion", detalle=x["detalle"].replace(
+                "agregada al PDF", "agregada al PDF después de su emisión (marca transparente, no oculta datos)"))
         elif doc.get("copia") and x["tipo"] == "objeto_superpuesto":
             x.update(severidad="observacion", detalle=x["detalle"] + " (formato COPIA: marca de agua propia)")
     meta = doc.get("meta") or {}
     if meta.get("producer"):
         s.append(_senal("metadatos", "info", f"PDF producido con '{meta.get('producer')}'"))
     if (doc.get("revisiones_pdf") or 1) > 1:
-        s.append(_senal("metadatos", "info", f"el PDF tiene {doc['revisiones_pdf']} versiones guardadas (edición incremental)"))
+        s.append(_senal("metadatos", "info",
+                             f"el PDF tiene {doc['revisiones_pdf']} versiones guardadas (edición incremental)"))
     validas = FUENTES_VALIDAS["hoja_vida" if plantilla["tipo_documento"] == "hoja_vida" else plantilla["id"]]
     ajenas = sorted({K.fuente_base(p["font"]) for p in doc.get("palabras_valor", []) if p.get("font")}
                     - {K.fuente_base(f) for f in validas} - validas)
@@ -520,14 +524,16 @@ def comparar_documento(doc, js, plantillas_doc, declarado, hoy):
     conf_id = valores.get("run", valores.get("rut", {})).get("conf", 1.0)
     if declarado.get("rut") and run_doc and N.rut_valido(run_doc) and run_doc != N.rut(declarado["rut"]):
         senales.append(_senal("identidad", "fraude" if (not es_ocr or conf_id >= C.CONF_OCR_ALTA) else "observacion",
-                              f"el documento está a nombre de otro RUT ({run_doc}); el postulante declaró {declarado['rut']}"))
+                              f"el documento está a nombre de otro RUT ({run_doc}); "
+                              f"el postulante declaró {declarado['rut']}"))
 
     desactualizado = False
     if tipo_doc == "hoja_vida" and emision:
         dias = (hoy - emision).days
         if dias > C.HVID_DIAS_VIGENCIA:
             desactualizado = True
-            senales.append(_senal("vigencia", "info", f"Hoja de Vida emitida hace {dias} días (máximo {C.HVID_DIAS_VIGENCIA})"))
+            senales.append(_senal("vigencia", "info",
+                                  f"Hoja de Vida emitida hace {dias} días (máximo {C.HVID_DIAS_VIGENCIA})"))
     if doc.get("copia"):
         senales.append(_senal("copia", "info", "versión 'COPIA, no válida como certificado': se requiere el original"))
     if doc.get("pagina_faltante"):

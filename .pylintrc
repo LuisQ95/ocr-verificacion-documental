@@ -1,0 +1,33 @@
+[MAIN]
+extension-pkg-allow-list=cv2,zxingcpp
+
+[FORMAT]
+max-line-length=127
+
+[TYPECHECK]
+generated-members=cv2.*,zxingcpp.*,os.sysconf,metadata
+
+[VARIABLES]
+ignored-argument-names=_.*|^ignored_|^unused_|segundo_lector
+
+[MESSAGES CONTROL]
+disable=
+    invalid-name,
+    import-outside-toplevel,
+    wrong-import-position,
+    protected-access,
+    redefined-outer-name,
+    broad-exception-caught,
+    global-statement,
+    cell-var-from-loop,
+    unsubscriptable-object,
+    duplicate-code,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements,
+    too-many-arguments,
+    too-many-positional-arguments,
+    too-many-return-statements,
+    too-many-boolean-expressions,
+    too-many-instance-attributes,
+    too-few-public-methods

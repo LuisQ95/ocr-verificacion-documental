@@ -28,12 +28,13 @@ MODELO_DBNET = DIR_MODELOS / "dbnet_es_finetuned.pt"
 CALIBRACION_CONF = DIR_MODELOS / "calibracion_confianza_cl_v4.json"
 """Curva que convierte la confianza del reconocedor en probabilidad de acierto (ajustada con entrenamiento/testing y
 testing_v2, que incluye nombres nunca vistos)."""
+VARIABLES_CANDIDATO = ("OCR_MODELO_PARSEQ", "OCR_CALIBRACION")
+"""OCR_MODELO_PARSEQ / OCR_CALIBRACION (variables de entorno, rutas relativas a la raíz) permiten medir un candidato
+con el pipeline completo antes de adoptarlo, sin cambiar lo adoptado."""
 if os.environ.get("OCR_MODELO_PARSEQ"):
     MODELO_PARSEQ = ROOT / os.environ["OCR_MODELO_PARSEQ"]
 if os.environ.get("OCR_CALIBRACION"):
     CALIBRACION_CONF = ROOT / os.environ["OCR_CALIBRACION"]
-"""OCR_MODELO_PARSEQ / OCR_CALIBRACION (variables de entorno, rutas relativas a la raíz) permiten medir un candidato
-con el pipeline completo antes de adoptarlo, sin cambiar lo adoptado."""
 VOCABULARIO = DIR_MODELOS / "vocabulario.json"
 """Valores válidos de los campos categóricos, tomados de los documentos oficiales."""
 REGISTRO_POSTULANTES = DIR_POSTULANTES / "candidatos.xlsx"

@@ -61,7 +61,7 @@ def paginas(split):
             if not r["guardado"] or "ilegible" in r["efectos"]:
                 continue
             visto = {}
-            for k, pg in enumerate(r["paginas"]):
+            for pg in r["paginas"]:
                 arch = pg.get("archivo")
                 if not arch:
                     continue
@@ -96,7 +96,7 @@ def ventana(img, palabras, rnd):
     altos = (np.linalg.norm(q[:, 3] - q[:, 0], axis=1) + np.linalg.norm(q[:, 2] - q[:, 1], axis=1)) / 2
     s = rnd.uniform(18, 34) / max(2.0, float(np.median(altos)))
     s = min(s, 4.0)
-    img = img.resize((max(1, round(W * s)), max(1, round(H * s))), Image.BILINEAR)
+    img = img.resize((max(1, round(W * s)), max(1, round(H * s))), Image.Resampling.BILINEAR)
     q = q * s
     cx, cy = q[rnd.randrange(len(q))].mean(0)
     x0 = int(np.clip(cx - rnd.uniform(0.2, 0.8) * LADO, 0, max(0, img.width - LADO)))
@@ -184,10 +184,10 @@ def evaluar(det, reco, loader):
             gt = obj["words"]
             pr = p["words"][:, :4] if len(p["words"]) else np.zeros((0, 4), np.float32)
             total_gt += len(gt)
-            if not len(pr):
+            if len(pr) == 0:
                 fn += len(gt)
                 continue
-            if not len(gt):
+            if len(gt) == 0:
                 fp += len(pr)
                 continue
             m = iou(pr, gt)
@@ -248,7 +248,10 @@ def main():
                     help="tope de VRAM: en Windows lo reservado por CUDA también cuenta como memoria del sistema")
     args = ap.parse_args()
     prioridad_baja()
-    log = lambda s: print(s, flush=True)
+    def log(s):
+        """Imprime al instante (el registro se sigue mientras corre)."""
+        print(s, flush=True)
+
     try:
         with R.Candado("detector"):
             g = R.gpu()
@@ -311,7 +314,8 @@ def main():
                     suma += loss.item()
                     n += 1
                     if k % 200 == 0:
-                        log(f"  época {ep} paso {k}/{len(datos)} | pérdida {suma / n:.4f} | {(time.time() - te0) / 60:.1f} min"
+                        log(f"  época {ep} paso {k}/{len(datos)} | pérdida {suma / n:.4f}"
+                            f" | {(time.time() - te0) / 60:.1f} min"
                             f" | VRAM pico {torch.cuda.max_memory_allocated() / 2 ** 30:.1f} GB")
                 m = evaluar(modelo, reco, val)
                 historial.append({"epoca": ep, "perdida": suma / max(1, n), **m})
@@ -326,7 +330,7 @@ def main():
             log(f"Terminado. F1 base {base['f1']:.4f} -> mejor {mejor:.4f}")
     except R.RecursosInsuficientes as e:
         log(f"NO SE LANZÓ: {e}")
-        raise SystemExit(2)
+        raise SystemExit(2) from e
 
 
 if __name__ == "__main__":

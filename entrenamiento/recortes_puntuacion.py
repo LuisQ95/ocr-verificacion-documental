@@ -20,7 +20,8 @@ from verificacion import config as C
 
 FUENTES = ["cour.ttf", "courbd.ttf", "arial.ttf", "arialbd.ttf", "verdana.ttf", "verdanab.ttf", "calibri.ttf",
            "tahoma.ttf", "times.ttf", "segoeui.ttf"]
-SIGNOS = ([":", ".", ",", ";", "-", "/", "°", "%", "(", ")", "'", ":-", "-", "N°"], [30, 12, 8, 5, 10, 6, 5, 5, 3, 3, 2, 1, 5, 5])
+SIGNOS = ([":", ".", ",", ";", "-", "/", "°", "%", "(", ")", "'", ":-", "-", "N°"],
+          [30, 12, 8, 5, 10, 6, 5, 5, 3, 3, 2, 1, 5, 5])
 
 
 def recorte(rnd):
@@ -31,7 +32,7 @@ def recorte(rnd):
     """
     texto = rnd.choices(*SIGNOS)[0]
     f = ImageFont.truetype(f"C:\\Windows\\Fonts\\{rnd.choice(FUENTES)}", rnd.randint(14, 48))
-    x0, y0, x1, y1 = f.getbbox("Ag")
+    _, y0, _, y1 = f.getbbox("Ag")
     w = int(f.getlength(texto)) + 2
     alto = y1 - y0
     fondo = tuple(rnd.randint(200, 255) for _ in range(3))

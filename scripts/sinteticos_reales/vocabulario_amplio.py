@@ -381,7 +381,8 @@ SUFIJOS_NOMBRE = {
 
 def transliterar(texto):
     """Al alfabeto del modelo: se conservan A-Z, Á É Í Ó Ú Ü Ñ, apóstrofo, guion y espacio."""
-    especiales = {"ß": "SS", "Ø": "O", "Æ": "AE", "Œ": "OE", "Ł": "L", "Đ": "D", "Þ": "TH", "Ð": "D", "İ": "I", "I": "I"}
+    especiales = {"ß": "SS", "Ø": "O", "Æ": "AE", "Œ": "OE", "Ł": "L", "Đ": "D", "Þ": "TH", "Ð": "D",
+                  "İ": "I", "I": "I"}
     out = []
     for ch in unicodedata.normalize("NFC", texto.upper()):
         if ch in "ÁÉÍÓÚÜÑ'- " or "A" <= ch <= "Z":
@@ -445,7 +446,8 @@ ORIGENES_GEN_NOMBRE = ["hispano", "italiano", "eslavo", "germanico", "africano",
 def _palabras_validas(texto):
     """Texto transliterado si es un nombre válido (2 a 28 caracteres, empieza y termina en letra); si no, None."""
     t = transliterar(texto.replace("_", " "))
-    return t if 2 <= len(t) <= 28 and re.fullmatch(r"[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ' -]*[A-ZÁÉÍÓÚÜÑ]", t) else None
+    return t if 2 <= len(t) <= 28 and \
+        re.fullmatch(r"[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ' -]*[A-ZÁÉÍÓÚÜÑ]", t) else None
 
 
 def _lista(reales, n, generador, origenes, rnd):
@@ -487,7 +489,10 @@ def construir(semilla=SEMILLA, vocabulario_anterior=(), reservar=()):
                 items[-1] = (w, "reservada", "real")
                 rnd.shuffle(items)
         n_prueba = round(len(items) * FRACCION_PRUEBA)
-        palabras = lambda t: set(re.split(r"[ '-]", t))
+        def palabras(t):
+            """Palabras de un nombre compuesto."""
+            return set(re.split(r"[ '-]", t))
+
         candidatos = [it for it in items if not palabras(it[0]) & anterior]
         prueba = [it for it in candidatos if it[0] in reservadas]
         resto = [it for it in candidatos if it[0] not in reservadas]

@@ -85,7 +85,7 @@ def recortes_postulantes(n, semilla):
     Las etiquetas (etiquetas_ocr_v2) y la legibilidad (ground_truth_v2) solo se usan para medir: se excluyen los
     archivos ilegibles.
     """
-    gt = [json.loads(l) for l in open(C.ROOT / "ground_truth_v2" / "ground_truth.jsonl", encoding="utf-8")]
+    gt = [json.loads(l) for l in (C.ROOT / "ground_truth_v2" / "ground_truth.jsonl").read_text(encoding="utf-8").splitlines()]
     ilegibles = {(f["carpeta"], a) for f in gt if not f["legible"] for a in f["archivos"]}
     cand = []
     for f in (C.ROOT / "etiquetas_ocr_v2").glob("*.json"):
@@ -115,7 +115,8 @@ def recortes_postulantes(n, semilla):
             continue
         ex, ey = (q[1] - q[0]) / ancho, (q[3] - q[0]) / alto
         mh, mw = 0.17 * alto, 0.05 * ancho
-        src = np.float32([q[0] - ex * mw - ey * mh, q[1] + ex * mw - ey * mh, q[2] + ex * mw + ey * mh, q[3] - ex * mw + ey * mh])
+        src = np.float32([q[0] - ex * mw - ey * mh, q[1] + ex * mw - ey * mh,
+                          q[2] + ex * mw + ey * mh, q[3] - ex * mw + ey * mh])
         h_out = int(np.clip(alto * 1.35, 12, 80))
         w_out = int(np.clip(h_out * ancho / alto * 1.1, 8, 700))
         M = cv2.getPerspectiveTransform(src, np.float32([[0, 0], [w_out, 0], [w_out, h_out], [0, h_out]]))
@@ -169,7 +170,7 @@ def main():
         if not a.postulantes:
             Path(a.salida).write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
             return
-        rec, txt, campos = recortes_postulantes(a.n, 5)
+        rec, txt, _ = recortes_postulantes(a.n, 5)
         print(f"campos de una palabra de postulant_files: {len(rec)}", flush=True)
         for n, r in recos.items():
             leidos = [norm(t) for t, _ in r(rec)]

@@ -322,7 +322,8 @@ def _misma_instancia(post, ofi, plantilla):
     es_ocr = not post.get("nativo")
     vp, vo = post.get("valores", {}), ofi.get("valores", {})
     for z in zonas_inst:
-        a, b = normalizar(vo.get(z, {}).get("texto", ""), "codigo", es_ocr), normalizar(vp.get(z, {}).get("texto", ""), "codigo", es_ocr)
+        a, b = normalizar(vo.get(z, {}).get("texto", ""), "codigo", es_ocr), \
+            normalizar(vp.get(z, {}).get("texto", ""), "codigo", es_ocr)
         if a and (a == b or (es_ocr and fuzz.ratio(a, b) >= 85)):
             return True
     return not (fe_post and fe_ofi and fe_post < fe_ofi)

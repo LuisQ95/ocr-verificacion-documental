@@ -37,8 +37,7 @@ class _MEMORYSTATUSEX(ctypes.Structure):
 def memoria():
     """RAM física libre y memoria comprometida libre (RAM + archivo de paginación), en GB."""
     if sys.platform == "win32":
-        st = _MEMORYSTATUSEX()
-        st.dwLength = ctypes.sizeof(st)
+        st = _MEMORYSTATUSEX(dwLength=ctypes.sizeof(_MEMORYSTATUSEX))
         ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st))
         return {"ram_libre_gb": st.ullAvailPhys / 2 ** 30,
                 "comprometida_libre_gb": st.ullAvailPageFile / 2 ** 30,
@@ -51,7 +50,7 @@ def gpu():
     """VRAM usada/total en GB según nvidia-smi (incluye lo que usan otros procesos)."""
     try:
         out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
-                             capture_output=True, text=True, timeout=10).stdout.strip().splitlines()[0]
+                             capture_output=True, text=True, timeout=10, check=False).stdout.strip().splitlines()[0]
         usada, total = (float(x) / 1024 for x in out.split(","))
         return {"vram_usada_gb": usada, "vram_total_gb": total, "vram_libre_gb": total - usada}
     except Exception:

@@ -81,7 +81,7 @@ def _limpiar_sesiones():
     ahora = time.time()
     for t in [t for t, s in _sesiones.items() if ahora - s["ultimo"] > DURACION_SESION_S]:
         del _sesiones[t]
-    vivas = [s for s in _sesiones.values()]
+    vivas = list(_sesiones.values())
     for tid in [tid for tid, t in _trabajos.items() if t["estado"] in ("terminado", "error")
                 and (ahora - t["creado"] > DURACION_SESION_S or not any(t["sesion"] is s for s in vivas))]:
         del _trabajos[tid]
@@ -155,8 +155,8 @@ def _decodificar(lista, maximo, mb, que):
         nombre = Path(str(x.get("nombre", "archivo"))).name[:150] or "archivo"
         try:
             datos = base64.b64decode(x.get("base64", ""), validate=True)
-        except (binascii.Error, ValueError):
-            raise HTTPException(400, f"No se pudo recibir '{nombre}'.")
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(400, f"No se pudo recibir '{nombre}'.") from exc
         if len(datos) > mb * 1024 * 1024:
             raise HTTPException(400, f"'{nombre}' supera {mb} MB.")
         if not datos:
@@ -177,8 +177,8 @@ async def _cuerpo_json(request: Request):
             raise HTTPException(413, "Los archivos superan el tamaño permitido.")
     try:
         return json.loads(bytes(cuerpo))
-    except ValueError:
-        raise HTTPException(400, "Petición inválida.")
+    except ValueError as exc:
+        raise HTTPException(400, "Petición inválida.") from exc
 
 
 @app.post("/api/validar")

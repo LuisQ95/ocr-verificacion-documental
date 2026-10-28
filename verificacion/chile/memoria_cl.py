@@ -134,7 +134,8 @@ def _cruces_identidad(ident, oficiales):
     fuentes = []
     if oficiales["hoja_vida"]:
         js = oficiales["hoja_vida"]
-        fuentes.append((f"JSON de Hoja de Vida ({oficiales['archivo_hoja_vida']})", js.get("Nombre", ""), js.get("R.U.N.", "")))
+        fuentes.append((f"JSON de Hoja de Vida ({oficiales['archivo_hoja_vida']})",
+                        js.get("Nombre", ""), js.get("R.U.N.", "")))
         fn = N.fecha(js.get("Fecha nacimiento", ""))
         if fn and ident["fecha_nacimiento"] and fn != ident["fecha_nacimiento"]:
             adv.append(f"La fecha de nacimiento ingresada ({ident['fecha_nacimiento']:%d-%m-%Y}) no coincide con la "

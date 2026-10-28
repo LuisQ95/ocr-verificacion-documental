@@ -185,9 +185,12 @@ def valores_de_pagina(p, pl):
     p["valores"] = asig["valores"]
     p["cobertura_etiquetas"] = asig["cobertura_etiquetas"]
     rects = [z["rect"] for z in tpl["zonas"].values() if z["tipo"] != "cuerpo"]
-    centro = lambda b: ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
-    p["palabras_valor"] = [w for w in palabras if any(r[0] <= centro(w["bbox"])[0] <= r[2] and r[1] <= centro(w["bbox"])[1] <= r[3]
-                                                      for r in rects)]
+    def centro(b):
+        """Centro de una caja (x0, y0, x1, y1)."""
+        return (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
+
+    p["palabras_valor"] = [w for w in palabras if any(r[0] <= centro(w["bbox"])[0] <= r[2]
+                                                      and r[1] <= centro(w["bbox"])[1] <= r[3] for r in rects)]
     if "cuerpo" in tpl["zonas"]:
         r = tpl["zonas"]["cuerpo"]["rect"]
         p["lineas_cuerpo"] = HV.lineas([w for w in palabras if r[0] <= centro(w["bbox"])[0] <= r[2]
@@ -210,7 +213,7 @@ def agrupar(paginas):
             por_archivo[p["archivo"]].append(p)
         else:
             docs.append([p])
-    for archivo, ps in por_archivo.items():
+    for ps in por_archivo.values():
         p1 = [p for p in ps if p["plantilla"] == "hoja_vida_p1"]
         p2 = [p for p in ps if p["plantilla"] == "hoja_vida_p2"]
         while p1 and p2:
@@ -462,8 +465,8 @@ def main():
                                                            not a.cpu, hoy=hoy)
     except (R.RecursosInsuficientes, DetenidoPorRecursos) as e:
         print(f"NO SE COMPLETÓ: {e}", flush=True)
-        raise SystemExit(2)
-    db, xlsx = escribir_reporte(personas, documentos, meta, Path(a.salida), no_adm)
+        raise SystemExit(2) from e
+    _, xlsx = escribir_reporte(personas, documentos, meta, Path(a.salida), no_adm)
     (Path(a.salida) / "resultados.jsonl").write_text("\n".join(json.dumps(d, ensure_ascii=False, default=str)
                                                                 for d in documentos), encoding="utf-8")
     print("\nPostulantes:", dict(Counter(p["veredicto"] for p in personas)))

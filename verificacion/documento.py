@@ -208,7 +208,7 @@ def geometria_nativa(palabras, plantilla):
             dst.append(cs[0])
     if len(src) < 4:
         return None
-    M, inl = cv2.estimateAffinePartial2D(np.float32(src), np.float32(dst), method=cv2.RANSAC,
+    M, _ = cv2.estimateAffinePartial2D(np.float32(src), np.float32(dst), method=cv2.RANSAC,
                                          ransacReprojThreshold=2.0)
     if M is None:
         return None

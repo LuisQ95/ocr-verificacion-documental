@@ -158,7 +158,8 @@ def test_verificacion_en_memoria_faltante_y_homonimos(visor):
     r = c.get("/api/resultados").json()[0]
     estados = {e["tipo"]: e["estado"] for e in r["esperados"]}
     assert estados == {"hoja_vida": "ENTREGADO", "ameco_rev02": M.FALTANTE, "ameco_rev03": "ENTREGADO"}
-    assert {d["tipo"]: d["veredicto"] for d in r["documentos"]} == {"hoja_vida_p1": "DESACTUALIZADO", "ameco_rev03": "AUTÉNTICO"}
+    assert {d["tipo"]: d["veredicto"] for d in r["documentos"]} == \
+        {"hoja_vida_p1": "DESACTUALIZADO", "ameco_rev03": "AUTÉNTICO"}
     assert re.fullmatch(r"\d{2}-\d{2}-\d{4}", r["fecha_nacimiento"]) and r["fecha_nacimiento_fuente"] == "JSON de Hoja de Vida"
     assert r["etiqueta"] == CASO["etiqueta"]
     x = c.get(f"/api/zip/{r['id']}")

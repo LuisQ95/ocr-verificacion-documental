@@ -179,7 +179,7 @@ JS = {"Nombre": "JUAN PEREZ SOTO", "Domicilio": "COLON 1560"}
 def test_documento_ilegible_no_se_compara():
     """Un documento ilegible no se compara campo a campo: se informa el motivo."""
     r = K.comparar_documento(_doc({}, ilegible=True, motivo_ilegible="imagen ilegible"), JS, ZONAS, {}, date(2026, 10, 18))
-    assert r["veredicto"] == K.NO_LEGIBLE and r["campos"] == [] and r["motivos"] == ["imagen ilegible"]
+    assert r["veredicto"] == K.NO_LEGIBLE and not r["campos"] and r["motivos"] == ["imagen ilegible"]
 
 
 def test_zona_corrida_con_etiqueta_vecina_no_acusa():
