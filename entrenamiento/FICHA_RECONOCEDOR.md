@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-27
 **Modelo adoptado (2026-10-28):** `modelos/parseq_cl_v4.pt`, con su calibración `calibracion_confianza_cl_v4.json`.
-**Modelo anterior:** `modelos/parseq_cl_puro.pt`, con su calibración `calibracion_confianza_cl_puro.json`. Se conserva intacto como respaldo.
+**Modelo anterior:** `modelos/parseq_cl_puro.pt`, con su calibración `calibracion_confianza_cl_puro.json`. Se conservó como respaldo hasta el 2026-10-31 (ver sección 9).
 
 ## 1. Problema que se corrige
 
@@ -167,7 +167,7 @@ subconjunto):
    Se compara contra la misma medición hecha con `puro`.
 3. **Si no empeora:** actualizar `MODELO_PARSEQ` y `CALIBRACION_CONF` en `verificacion/config.py` y correr `pytest tests`.
 
-**Respaldo.** `parseq_cl_puro.pt` y su calibración no se borran. Volver atrás es cambiar dos líneas de `config.py`.
+**Respaldo.** `parseq_cl_puro.pt` se conservó hasta el 2026-10-31 (ver sección 9).
 
 ## 7. Menos genuinos a revisión (reglas, 2026-10-28)
 
@@ -234,3 +234,22 @@ píxeles levemente distintos y cuyo efecto solo se había medido en ajuste. Qued
 
 No se adoptó: tratar como falsificada una anotación oficial que no aparece cuando no queda ninguna anotación sin
 emparejar (técnica "borrar anotaciones negativas"); en ajuste también aparecía en 2 genuinos.
+
+## 9. Limpieza (2026-10-31)
+
+Se borraron para liberar unos 8,6 GB:
+
+- `parseq_cl_puro.pt` y su checkpoint: v4 lleva tres días adoptado y medido en ajuste y reservado;
+- `parseq_cl_v5.pt` y su checkpoint: el afinado v5 no mejoró (sección 6);
+- `parseq_cl_v4_checkpoint.pt`: estado del optimizador; para usar el modelo basta `parseq_cl_v4.pt`;
+- los conjuntos v1 `entrenamiento/training` y `entrenamiento/testing` (7,3 GB).
+
+Se conservan las métricas (`*_metricas.json`, `eval_*.json`) y las calibraciones.
+
+Para repetir el entrenamiento del v4 (`--repaso-v1` y la validación `testing`) o recalibrar con `--splits testing`,
+primero hay que regenerar los conjuntos v1 con la misma semilla. Esto necesita el generador local y las plantillas
+oficiales:
+
+```powershell
+python -u -m scripts.sinteticos_reales.entrenamiento_ocr --training 50000 --testing 20000 --semilla 20261019
+```

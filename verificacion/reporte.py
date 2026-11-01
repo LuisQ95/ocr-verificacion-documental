@@ -105,8 +105,9 @@ def excel(ruta, personas, documentos, meta, no_admitidos):
                              "(lectura dudosa; la columna 'Prioridad de revisión' pone primero, con ALTA, los que tienen "
                              "un indicio técnico o un valor distinto leído con claridad); NO LEGIBLE = no se pudo leer "
                              "(no se acusa); NO VÁLIDO = copia no válida como certificado; DESACTUALIZADO = genuino "
-                             "pero antiguo; NO RECONOCIDO = archivo que no es ninguno de los documentos solicitados; SIN DATO OFICIAL = no se entregó su "
-                             "JSON oficial: no se verificó, solo se extrajeron sus datos."),
+                             "pero antiguo; NO RECONOCIDO = archivo que no es ninguno de los documentos solicitados; "
+                             "SIN DATO OFICIAL = no se entregó su JSON oficial: no se verificó, solo se extrajeron "
+                             "sus datos."),
             ("Aptitud", "¿Cumple los requisitos del puesto (config/requisitos_cl.yaml)? Se evalúa con los datos "
                         "oficiales. APTO / NO APTO / INCOMPLETO (falta un documento o el presentado es falso). "
                         "Un postulante puede ser AUTÉNTICO y NO APTO: sus documentos son verdaderos pero no "

@@ -20,7 +20,7 @@ MODELO_PARSEQ = DIR_MODELOS / "parseq_cl_v4.pt"
 """Reconocedor adoptado el 2026-10-28 (ver entrenamiento/FICHA_RECONOCEDOR.md): parte del PARSeq genérico de docTR y
 se entrenó con un vocabulario amplio de nombres (20 % reservado para la prueba), texto aleatorio y los datos anteriores
 redistribuidos, para que lea en vez de memorizar. Verificador completo en 600 postulantes: genuinos acusados 8 -> 2
-con la misma detección (455 vs 456 de 520). El anterior, parseq_cl_puro.pt, se conserva como respaldo."""
+con la misma detección (455 vs 456 de 520). El anterior, parseq_cl_puro.pt, se borró el 2026-10-31."""
 MODELO_DBNET = DIR_MODELOS / "dbnet_es_finetuned.pt"
 """Detector afinado; solo se usa si existe (el afinado no mejoró y no se adoptó)."""
 CALIBRACION_CONF = DIR_MODELOS / "calibracion_confianza_cl_v4.json"
