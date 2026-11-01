@@ -6,10 +6,10 @@ max-line-length=127
 
 [TYPECHECK]
 generated-members=cv2.*,zxingcpp.*,os.sysconf,metadata
-ignored-modules=scripts.sinteticos_reales
+ignored-modules=scripts.synthetic
 
 [VARIABLES]
-ignored-argument-names=_.*|^ignored_|^unused_|segundo_lector
+ignored-argument-names=_.*|^ignored_|^unused_|second_reader
 
 [MESSAGES CONTROL]
 disable=

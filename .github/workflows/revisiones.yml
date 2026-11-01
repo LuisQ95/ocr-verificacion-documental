@@ -20,7 +20,7 @@ jobs:
     - name: Buscar datos sensibles
       env:
         TERMINOS_PROHIBIDOS: ${{ secrets.TERMINOS_PROHIBIDOS }}
-      run: python .github/scripts/revisar_publicacion.py datos
+      run: python .github/scripts/check_publication.py datos
 
   sin-comentarios:
     runs-on: ubuntu-latest
@@ -31,4 +31,4 @@ jobs:
       with:
         python-version: "3.12"
     - name: Buscar comentarios con #
-      run: python .github/scripts/revisar_publicacion.py comentarios
+      run: python .github/scripts/check_publication.py comentarios
