@@ -346,7 +346,7 @@ def summary(trabajo: str = "acumulado"):
     }
 
 
-@app.get("/api/persona/{carpeta}")
+@app.get("/api/persona/{folder}")
 def person(folder: str):
     """Detalle de la última revisión de un postulante. La miniatura de cada documento es su primera página, sin
     las marcas "(2)" ni "[documento 2]" del nombre."""
@@ -393,7 +393,7 @@ def thumbnail(ruta: str, pagina: int = 0):
     return Response(png, media_type="image/png")
 
 
-@app.get("/api/archivo_postulante/{carpeta}/{archivo}")
+@app.get("/api/archivo_postulante/{folder}/{file}")
 def applicant_file(folder: str, file: str):
     """Miniatura de un archivo del postulante; "#pN" en el nombre indica la página."""
     name, _, pg_ = file.partition("#p")
@@ -401,7 +401,7 @@ def applicant_file(folder: str, file: str):
     return thumbnail(str(p), int(pg_) - 1 if pg_ else 0)
 
 
-@app.get("/api/oficial/{carpeta}/{archivo}")
+@app.get("/api/oficial/{folder}/{file}")
 def official(folder: str, file: str):
     """Dato oficial (JSON del webscraping) con que se comparó el documento."""
     p = _safe_path(C.OFFICIAL_DATA_DIR / folder / file)
