@@ -20,6 +20,14 @@ def cargar(ruta=RUTA):
     return json.loads(ruta.read_text(encoding="utf-8"))
 
 
+def version(ruta=RUTA):
+    """Fecha de modificación de acceso.json en nanosegundos (None si no existe): cambia cada vez que se guarda."""
+    try:
+        return ruta.stat().st_mtime_ns
+    except FileNotFoundError:
+        return None
+
+
 def guardar(cfg, ruta=RUTA):
     """Guarda la configuración en acceso.json."""
     ruta.write_text(json.dumps(cfg, indent=1, ensure_ascii=False), encoding="utf-8")

@@ -42,6 +42,8 @@ jobs:
     - name: Instalar dependencias
       run: |
         python -m pip install --upgrade pip setuptools
-        pip install -r requirements.txt pip-audit
+        pip install pip-audit
+        sed -e 's/+cu130//' -e 's#whl/cu130#whl/cpu#' requirements-lock.txt > requisitos-ci.txt
+        pip install -r requisitos-ci.txt
     - name: Auditar vulnerabilidades conocidas (setuptools<82 lo fija torch 2.11; sus dos fallas solo afectan la construcción de paquetes)
       run: pip-audit --skip-editable --desc on --ignore-vuln PYSEC-2026-3447 --ignore-vuln GHSA-xmj3-9gf7-h52w

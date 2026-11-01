@@ -8,6 +8,7 @@ y solo en la memoria del servidor de pruebas mientras dure la sesión.
 import io
 import json
 import re
+import threading
 import unicodedata
 from collections import Counter
 from datetime import date
@@ -29,7 +30,18 @@ FALTANTE = "DOCUMENTO FALTANTE"
 NO_IDENTIFICADO = "NO IDENTIFICADO"
 """El documento no aparece entre los archivos legibles, pero hay archivos ilegibles (puede ser uno de ellos)."""
 PARTICULAS = {"DE", "DEL", "LA", "LAS", "LOS", "Y", "DA", "DI", "VAN", "VON", "SAN", "SANTA"}
+MAX_PAGINAS_ARCHIVO = 20
+"""Páginas máximas de un archivo (PDF o TIFF): los documentos pedidos tienen 1 o 2; un archivo de cientos de páginas
+ocuparía el equipo por horas."""
+MAX_PAGINAS_VERIFICACION = 60
+"""Páginas máximas de una verificación (todos los archivos del postulante)."""
+LECTOR_INACTIVO_S = 5 * 60
+"""Tras este tiempo sin verificaciones, el lector OCR se descarga y libera la GPU para otros trabajos."""
 _iniciado = False
+_lectores = {}
+"""Lector OCR cargado por dispositivo (True = GPU, False = CPU): se reutiliza entre verificaciones seguidas."""
+_bloqueo_lector = threading.Lock()
+_temporizador = None
 
 
 def _palabras(texto):
@@ -163,6 +175,30 @@ def _iniciar():
         _iniciado = True
 
 
+def _liberar_lectores():
+    """Descarga los lectores OCR cargados (al cumplirse LECTOR_INACTIVO_S sin uso)."""
+    with _bloqueo_lector:
+        while _lectores:
+            PL.liberar_lector(_lectores.popitem()[1])
+
+
+def _con_lector(usar_gpu, accion):
+    """Ejecuta accion(lector) con el lector OCR del dispositivo, cargándolo solo si no está en memoria. Al terminar
+    se programa su descarga tras LECTOR_INACTIVO_S sin uso."""
+    global _temporizador
+    with _bloqueo_lector:
+        if _temporizador:
+            _temporizador.cancel()
+        if usar_gpu not in _lectores:
+            _lectores[usar_gpu] = PL.crear_lector(usar_gpu)
+        try:
+            return accion(_lectores[usar_gpu])
+        finally:
+            _temporizador = threading.Timer(LECTOR_INACTIVO_S, _liberar_lectores)
+            _temporizador.daemon = True
+            _temporizador.start()
+
+
 def verificar_en_memoria(ident, archivos, jsons, hoy=None, usar_gpu=True, progreso=None, log=lambda m: None):
     """ident: de validar_identidad; archivos / jsons: [(nombre, bytes)]. Devuelve el resultado completo.
 
@@ -172,7 +208,7 @@ def verificar_en_memoria(ident, archivos, jsons, hoy=None, usar_gpu=True, progre
     hoy = hoy or date.today()
     progreso = progreso or (lambda *a: None)
     _iniciar()
-    pl, req = L._PL, Q.cargar()
+    pl, req = L.plantillas(), Q.cargar()
     carpeta = ident["nombre_completo"]
     oficiales, adv = leer_oficiales(jsons)
     adv += _cruces_identidad(ident, oficiales)
@@ -188,25 +224,37 @@ def verificar_en_memoria(ident, archivos, jsons, hoy=None, usar_gpu=True, progre
             continue
         a = L.ArchivoMemoria(nombre, datos, carpeta)
         try:
-            unidades += L.unidades(a)
+            us = L.unidades(a)
         except Exception as e:
             no_adm.append({"carpeta": carpeta, "archivo": nombre, "origen": "postulante",
                            "motivo": f"no se pudo abrir el archivo ({type(e).__name__})"})
+            continue
+        if len(us) > MAX_PAGINAS_ARCHIVO:
+            motivo = f"tiene {len(us)} páginas (máximo {MAX_PAGINAS_ARCHIVO} por archivo)"
+        elif len(unidades) + len(us) > MAX_PAGINAS_VERIFICACION:
+            motivo = f"se superó el máximo de {MAX_PAGINAS_VERIFICACION} páginas por verificación"
+        else:
+            unidades += us
+            continue
+        no_adm.append({"carpeta": carpeta, "archivo": nombre, "origen": "postulante", "motivo": motivo})
     for i, u in enumerate(unidades, 1):
         progreso("leyendo documentos", i, len(unidades))
         paginas += PL.paginas_de_unidad(L.analizar(u))
-    modelo = PL.leer_ocr(paginas, usar_gpu, log, lambda h, t: progreso("leyendo imágenes con OCR", h, t))
+    def avance_ocr(h, t):
+        """Progreso de la lectura OCR."""
+        progreso("leyendo imágenes con OCR", h, t)
+
+    if any("imagen_ocr" in p for p in paginas):
+        modelo = _con_lector(usar_gpu, lambda lector: PL.leer_ocr(paginas, usar_gpu, log, avance_ocr, lector))
+    else:
+        modelo = "no se usó OCR"
     for p in paginas:
         if p.get("plantilla") and not p.get("ilegible"):
             PL.valores_de_pagina(p, pl)
     progreso("comparando con el dato oficial", 0, 0)
     registro = {carpeta: {"rut": ident["rut"], "nombre": carpeta, "puesto": ident["cargo"]}}
     persona, filas = PL.dictaminar(carpeta, paginas, registro, None, req, hoy, pl, oficiales=oficiales)
-    vistos = Counter()
-    for f in filas:
-        vistos[f["archivo"]] += 1
-        if vistos[f["archivo"]] > 1:
-            f["archivo"] = f"{f['archivo']} ({vistos[f['archivo']]})"
+    for f in PL.nombres_unicos(filas):
         if f["tipo_documento"].startswith("hoja_vida") and oficiales["archivo_hoja_vida"] and f["archivo_oficial"]:
             f["archivo_oficial"] = oficiales["archivo_hoja_vida"]
 
@@ -249,7 +297,7 @@ def excel_en_memoria(resultado):
     meta = dict(resultado["meta"], documentos_faltantes=", ".join(persona.get("faltantes", [])) or "ninguno",
                 documentos_no_identificados=", ".join(persona.get("no_identificados", [])) or "ninguno",
                 advertencias=" | ".join(resultado["advertencias"]) or "ninguna")
-    reporte._excel(buf, [persona], resultado["documentos"], meta, resultado["no_admitidos"])
+    reporte.excel(buf, [persona], resultado["documentos"], meta, resultado["no_admitidos"])
     return buf.getvalue()
 
 

@@ -77,7 +77,11 @@ Método, datos y resultados completos en [entrenamiento/FICHA_RECONOCEDOR.md](en
 ## Estructura
 
 ```
-verificacion/            núcleo: lectura, alineación, OCR, comparación, reportes, protección de recursos
+verificacion/            núcleo común a cualquier país
+  pdf.py, imagen.py      lectura de PDF (texto visible y oculto, objetos) y alineación de fotos con la plantilla
+  ocr.py                 detector DBNet + reconocedor PARSeq, con confianza calibrada
+  campos.py, cajas.py    asignación de palabras a zonas, normalización OCR, estados de campo y documento
+  reporte.py, recursos.py, config.py   SQLite + Excel, protección de GPU/RAM, rutas y umbrales
   chile/                 flujo de los documentos chilenos (plantillas, lectura, reglas, aptitud, extracción)
 entrenamiento/           entrenamiento y evaluación del reconocedor y del detector, calibración de la confianza
 auditoria/               medición del flujo contra un ground truth (solo lectura: nunca alimenta reglas ni modelos)
@@ -94,8 +98,13 @@ verificar_postulante_cl.ipynb                      verificación de un postulant
 Requiere Python 3.12 (o superior) y, para el OCR en GPU, una tarjeta NVIDIA. Sin GPU funciona en CPU, más lento.
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-lock.txt
 ```
+
+`requirements-lock.txt` fija la versión exacta de cada paquete (también las dependencias indirectas) del entorno con
+que se midieron los dictámenes. `requirements.txt` declara las dependencias directas. Cambiar una versión puede
+cambiar lecturas OCR (al pasar de Pillow 11 a 13, las fotos JPEG se decodifican con píxeles levemente distintos):
+toda actualización se mide antes de adoptarla.
 
 **Lo que no está en el repositorio:**
 

@@ -7,21 +7,28 @@ Entre la detección y el reconocimiento hay pasos propios para evitar errores co
      perfil horizontal de tinta y cada línea se reconoce por separado.
   4. Lectura de respaldo por zona: si una zona de la plantilla tiene tinta pero el detector no
      encontró texto ahí (p. ej. un "0" aislado), se recorta la tinta y se reconoce directamente.
+  5. Caracteres sueltos: en las zonas de texto libre (la sección variable de la Hoja de Vida), la tinta del tamaño
+     de 1 a 3 caracteres que el detector dejó fuera de toda caja (la clase "D" de una licencia, el día "9" de una
+     fecha) se recorta y se reconoce; solo se conserva una lectura con confianza suficiente.
 """
 
 import math
 
+import cv2
 import numpy as np
 import torch
 from doctr.datasets import VOCABS
 from doctr.models import db_resnet50, detection_predictor, parseq, recognition_predictor
 
 from . import config as C
+from .cajas import iou
 
 ALTO_FRANJA = 704
 SOLAPE = 100
 UMBRAL_TINTA = 170
 """Gris por debajo de esto se considera tinta (incluye texto fino y gris)."""
+CONF_MIN_SUELTO = 0.5
+"""Confianza mínima (calibrada) para conservar la lectura de un carácter suelto: más abajo suele ser una mancha."""
 
 
 DIGITOS = set("0123456789")
@@ -45,14 +52,6 @@ def conjunto_zona(zona):
     if tipo == "categorico" and zona.get("validos"):
         return set("".join(zona["validos"]).replace(" ", ""))
     return None
-
-
-def zonas_para_ocr(plantilla, vocab=None):
-    """Zonas de una plantilla con lo que el lector necesita: rectángulo, tipo y valores válidos."""
-    vocab = vocab or {}
-    return [{"rect": z["rect"], "tipo": z.get("tipo"), "nombre": nombre,
-             "validos": vocab.get((plantilla["id"], z.get("columna") or nombre))}
-            for nombre, z in plantilla["zonas"].items()]
 
 
 def cargar_calibracion(ruta=C.CALIBRACION_CONF):
@@ -90,15 +89,6 @@ def cargar_reconocedor(ruta_pesos=C.MODELO_PARSEQ):
         modelo.load_state_dict(torch.load(ruta_pesos, map_location="cpu", weights_only=True))
         return modelo, ruta_pesos.stem
     return parseq(pretrained=True), "parseq_preentrenado"
-
-
-def _iou(a, b):
-    """Intersección sobre unión de dos cajas (x0, y0, x1, y1, ...)."""
-    ix = max(0, min(a[2], b[2]) - max(a[0], b[0]))
-    iy = max(0, min(a[3], b[3]) - max(a[1], b[1]))
-    inter = ix * iy
-    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
-    return inter / union if union > 0 else 0.0
 
 
 def _unir_diacriticos(cajas):
@@ -198,8 +188,9 @@ class LectorOCR:
         reco.head = _CabezaRestringida(reco.head)
         self.modelo_reco = reco
         self.vocab = reco.vocab
-        detector = db_resnet50(pretrained=True)
-        if ruta_detector and ruta_detector.exists():
+        ajustado = bool(ruta_detector and ruta_detector.exists())
+        detector = db_resnet50(pretrained=not ajustado)
+        if ajustado:
             detector.load_state_dict(torch.load(ruta_detector, map_location="cpu", weights_only=True))
             self.nombre_modelo += f" + {ruta_detector.stem}"
         self.det = detection_predictor(arch=detector, assume_straight_pages=True,
@@ -242,7 +233,7 @@ class LectorOCR:
         for img, cs in zip(imagenes, cajas):
             unicas = []
             for c in sorted(cs, key=lambda c: -c[4]):
-                if all(_iou(c, u) < 0.3 for u in unicas):
+                if all(iou(c, u) < 0.3 for u in unicas):
                     unicas.append(c)
             unicas = _unir_diacriticos(unicas)
             finales = []
@@ -332,11 +323,39 @@ class LectorOCR:
                           min(img.shape[1], x0 + xs.max() + 4), min(img.shape[0], y0 + ys.max() + 4)))
         return extra
 
+    @staticmethod
+    def _sueltos(img, cajas, rect):
+        """Cajas de la tinta del tamaño de 1 a 3 caracteres que quedó fuera de toda caja detectada dentro de `rect`
+        (puntos). La altura de referencia es la mediana de las cajas detectadas en el rectángulo: una mancha mucho
+        más baja o más alta, o más ancha que 3 caracteres (una línea, una firma), no es un carácter."""
+        x0, y0, x1, y1 = (int(v * C.ESCALA) for v in rect)
+        x0, y0, x1, y1 = max(0, x0), max(0, y0), min(img.shape[1], x1), min(img.shape[0], y1)
+        dentro = [c for c in cajas if x0 <= (c[0] + c[2]) / 2 <= x1 and y0 <= (c[1] + c[3]) / 2 <= y1]
+        if len(dentro) < 3 or x1 - x0 < 10 or y1 - y0 < 10:
+            return []
+        alto = float(np.median([c[3] - c[1] for c in dentro]))
+        tinta = (img[y0:y1, x0:x1] < UMBRAL_TINTA).astype(np.uint8)
+        for cx0, cy0, cx1, cy1 in cajas:
+            tinta[max(0, cy0 - y0 - 2):max(0, cy1 - y0 + 2), max(0, cx0 - x0 - 2):max(0, cx1 - x0 + 2)] = 0
+        unida = cv2.dilate(tinta, np.ones((1, max(3, round(alto * 0.35))), np.uint8))
+        n, _, stats, _ = cv2.connectedComponentsWithStats(unida, connectivity=8)
+        salida = []
+        for i in range(1, n):
+            sx, sy, sw, sh, _ = stats[i]
+            if not 0.55 * alto <= sh <= 1.4 * alto or not 0.2 * alto <= sw <= 3 * alto:
+                continue
+            if tinta[sy:sy + sh, sx:sx + sw].sum() < 12:
+                continue
+            salida.append((max(0, x0 + sx - 3), max(0, y0 + sy - 3),
+                           min(img.shape[1], x0 + sx + sw + 3), min(img.shape[0], y0 + sy + sh + 3)))
+        return salida
+
     @torch.inference_mode()
-    def leer(self, imagenes_gris, zonas_por_pagina=None):
+    def leer(self, imagenes_gris, zonas_por_pagina=None, libres_por_pagina=None):
         """Recibe páginas alineadas (gris, coordenadas de plantilla) y, opcionalmente, los rectángulos
-        de las zonas de cada página (en puntos). Devuelve por página una lista de palabras
-        {texto, conf, bbox, respaldo} con bbox en puntos PDF de la plantilla.
+        de las zonas de cada página (en puntos) y los de sus zonas de texto libre (donde se buscan caracteres
+        sueltos). Devuelve por página una lista de palabras {texto, conf, bbox, respaldo} con bbox en puntos PDF
+        de la plantilla.
 
         Un recorte dividido en tramos se reconstruye concatenando sus lecturas (con la confianza mínima). Las
         lecturas con mayoría de guiones o puntuación se descartan: son restos de marca de agua, líneas o manchas.
@@ -346,7 +365,8 @@ class LectorOCR:
         for n, (img, cs) in enumerate(zip(imagenes_gris, cajas)):
             zonas = zonas_por_pagina[n] if zonas_por_pagina else []
             extra = self._respaldo_zonas(img, cs, zonas) if zonas else []
-            for caja, respaldo in [(c, False) for c in cs] + [(c, True) for c in extra]:
+            sueltos = [s for r in (libres_por_pagina[n] if libres_por_pagina else []) for s in self._sueltos(img, cs, r)]
+            for caja, respaldo in [(c, False) for c in cs] + [(c, True) for c in extra] + [(c, "suelto") for c in sueltos]:
                 x0, y0, x1, y1 = caja
                 zona = self._zona_de(caja, zonas) if self.restringir and zonas else None
                 segs = _segmentos(img[y0:y1, x0:x1], self.max_aspecto)
@@ -364,6 +384,8 @@ class LectorOCR:
             lecturas.append(("".join(t for t, _ in partes), min(c for _, c in partes)))
             i += k
         for (n, (x0, y0, x1, y1), respaldo, _), (texto, conf) in zip(indice, lecturas):
+            if respaldo == "suelto" and (conf < CONF_MIN_SUELTO or not texto.isalnum()):
+                continue
             if texto and sum(ch.isalnum() for ch in texto) >= len(texto) / 2:
                 salida[n].append({"texto": texto, "conf": float(conf), "respaldo": respaldo,
                                   "bbox": [x0 / C.ESCALA, y0 / C.ESCALA, x1 / C.ESCALA, y1 / C.ESCALA]})

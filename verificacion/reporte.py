@@ -8,7 +8,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from . import config as C
-from .comparacion import (AUTENTICO, DESACTUALIZADO, DESACTUALIZADO_C, DIFERENTE, DUDOSO, FALSIFICADO, IGUAL,
+from .campos import (AUTENTICO, DESACTUALIZADO, DESACTUALIZADO_C, DIFERENTE, DUDOSO, FALSIFICADO, IGUAL,
                           NO_APLICA, OBSERVADO)
 from .chile.requisitos_cl import APTO, INCOMPLETO, NO_APTO, NO_EVALUABLE
 
@@ -29,7 +29,7 @@ def _sqlite(ruta, personas, documentos, meta, no_admitidos):
             tipos_falsificados TEXT, puesto TEXT, aptitud TEXT, motivos_aptitud TEXT);
         CREATE TABLE documentos (carpeta TEXT, archivo TEXT, tipo_documento TEXT, formato TEXT, veredicto TEXT,
             motivos TEXT, misma_instancia INTEGER, archivo_oficial TEXT, alineacion_ok INTEGER, alineacion TEXT,
-            residual_etiquetas_pt REAL, producer TEXT, PRIMARY KEY (carpeta, archivo));
+            residual_etiquetas_pt REAL, producer TEXT, prioridad_revision TEXT, PRIMARY KEY (carpeta, archivo));
         CREATE TABLE campos (carpeta TEXT, archivo TEXT, zona TEXT, oficial TEXT, postulante TEXT, estado TEXT,
             motivo TEXT, conf REAL);
         CREATE TABLE senales (carpeta TEXT, archivo TEXT, tipo TEXT, severidad TEXT, detalle TEXT);
@@ -41,11 +41,12 @@ def _sqlite(ruta, personas, documentos, meta, no_admitidos):
                       p["observados"], p["desactualizados"], ", ".join(p["tipos_falsificados"]), p["puesto"],
                       p["aptitud"], " | ".join(p["motivos_aptitud"])) for p in personas])
     for d in documentos:
-        con.execute("INSERT INTO documentos VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        con.execute("INSERT INTO documentos VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (d["carpeta"], d["archivo"], d["tipo_documento"], d["formato"], d["veredicto"],
                      " | ".join(d["motivos"]), None if d["misma_instancia"] is None else int(d["misma_instancia"]),
                      d["archivo_oficial"], int(bool(d["alineacion_ok"])),
-                     json.dumps(d["alineacion"], ensure_ascii=False), d["residual_etiquetas_pt"], d["producer"]))
+                     json.dumps(d["alineacion"], ensure_ascii=False), d["residual_etiquetas_pt"], d["producer"],
+                     d.get("prioridad_revision", "")))
         con.executemany("INSERT INTO campos VALUES (?,?,?,?,?,?,?,?)",
                         [(d["carpeta"], d["archivo"], c["zona"], c["oficial"], c["postulante"], c["estado"],
                           c["motivo"], c["conf"]) for c in d["campos"]])
@@ -88,7 +89,7 @@ def _conteo(ws, titulo, contador):
         ws.cell(ws.max_row, 1).fill = PatternFill("solid", fgColor=COLORES.get(v, "FFFFFF"))
 
 
-def _excel(ruta, personas, documentos, meta, no_admitidos):
+def excel(ruta, personas, documentos, meta, no_admitidos):
     """Reporte Excel: resumen con guía de lectura y conteos, y hojas de personas, documentos, diferencias, señales
     y no admitidos."""
     wb = Workbook()
@@ -101,9 +102,10 @@ def _excel(ruta, personas, documentos, meta, no_admitidos):
             ("Cómo leer este reporte", ""),
             ("Autenticidad", "¿Los documentos son verdaderos? AUTÉNTICO = coinciden con el dato oficial (JSON); "
                              "FALSIFICADO = algún dato o elemento no coincide; OBSERVADO = requiere revisión humana "
-                             "(lectura dudosa); NO LEGIBLE = no se pudo leer (no se acusa); NO VÁLIDO = copia no "
-                             "válida como certificado; DESACTUALIZADO = genuino pero antiguo; NO RECONOCIDO = archivo "
-                             "que no es ninguno de los documentos solicitados; SIN DATO OFICIAL = no se entregó su "
+                             "(lectura dudosa; la columna 'Prioridad de revisión' pone primero, con ALTA, los que tienen "
+                             "un indicio técnico o un valor distinto leído con claridad); NO LEGIBLE = no se pudo leer "
+                             "(no se acusa); NO VÁLIDO = copia no válida como certificado; DESACTUALIZADO = genuino "
+                             "pero antiguo; NO RECONOCIDO = archivo que no es ninguno de los documentos solicitados; SIN DATO OFICIAL = no se entregó su "
                              "JSON oficial: no se verificó, solo se extrajeron sus datos."),
             ("Aptitud", "¿Cumple los requisitos del puesto (config/requisitos_cl.yaml)? Se evalúa con los datos "
                         "oficiales. APTO / NO APTO / INCOMPLETO (falta un documento o el presentado es falso). "
@@ -133,9 +135,10 @@ def _excel(ruta, personas, documentos, meta, no_admitidos):
           cols_color=(3, 4))
 
     _hoja(wb.create_sheet("documentos"),
-          ["Carpeta", "Archivo", "Tipo de documento", "Formato", "Veredicto", "Motivos", "Mismo documento que el oficial",
-           "Archivo oficial"],
+          ["Carpeta", "Archivo", "Tipo de documento", "Formato", "Veredicto", "Prioridad de revisión", "Motivos",
+           "Mismo documento que el oficial", "Archivo oficial"],
           [[d["carpeta"], d["archivo"], d["tipo_documento"], d["formato"], d["veredicto"],
+            d.get("prioridad_revision", ""),
             " | ".join(d["motivos"])[:2000],
             "" if d["misma_instancia"] is None else ("SÍ" if d["misma_instancia"] else "NO (otra emisión)"),
             d["archivo_oficial"]] for d in documentos], cols_color=(4,))
@@ -161,5 +164,5 @@ def escribir_reporte(personas, documentos, meta, salida=C.DIR_RESULTADOS, no_adm
     db = salida / "verificacion.db"
     xlsx = salida / "reporte_verificacion.xlsx"
     _sqlite(db, personas, documentos, meta, list(no_admitidos))
-    _excel(xlsx, personas, documentos, meta, list(no_admitidos))
+    excel(xlsx, personas, documentos, meta, list(no_admitidos))
     return db, xlsx

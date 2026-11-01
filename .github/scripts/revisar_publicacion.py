@@ -135,10 +135,12 @@ def revisar_datos(rev):
 
 
 def revisar_comentarios():
-    """Hallazgos (ruta, línea, motivo) de comentarios # en los archivos Python versionados."""
+    """Hallazgos (ruta, línea, motivo) de comentarios # en los archivos Python versionados y en los nuevos aún sin
+    versionar (los borrados se omiten): revisa el estado actual de la carpeta."""
     hallazgos = []
-    for ruta in archivos("HEAD"):
-        if not ruta.endswith(".py"):
+    vigentes = git("ls-files", "-z", "--cached", "--others", "--exclude-standard").decode("utf-8").split("\0")
+    for ruta in vigentes:
+        if not ruta.endswith(".py") or not (RAIZ / ruta).exists():
             continue
         texto = (RAIZ / ruta).read_text(encoding="utf-8")
         for tok in tokenize.generate_tokens(io.StringIO(texto).readline):

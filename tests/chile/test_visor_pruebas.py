@@ -115,6 +115,29 @@ def test_ip_no_permitida(visor):
         S._cfg["ips_permitidas"] = ["testclient"]
 
 
+def test_cambio_de_acceso_sin_reiniciar(visor, tmp_path, monkeypatch):
+    """Al guardar acceso.json, las IP permitidas nuevas rigen desde la petición siguiente."""
+    from visor_pruebas import acceso as A
+    S, c = visor
+    guardado = (S._cfg, S._cfg_version)
+    ruta = tmp_path / "acceso.json"
+    monkeypatch.setattr(A, "RUTA", ruta)
+    try:
+        A.guardar(dict(S._cfg, ips_permitidas=[]), ruta)
+        assert c.get("/").status_code == 403
+        A.guardar(dict(S._cfg, ips_permitidas=["testclient"]), ruta)
+        S._cfg_version = None
+        assert c.get("/").status_code == 200
+    finally:
+        S._cfg, S._cfg_version = guardado
+
+
+def test_peticiones_sin_archivos_tienen_tamano_maximo(visor):
+    """El inicio de sesión no acepta cuerpos grandes (no se procesa una contraseña de 100 KB)."""
+    _, c = visor
+    assert c.post("/api/login", json={"clave": "x" * 100_000}).status_code == 413
+
+
 def test_contrasena(visor):
     """Sin sesión no hay acceso; la contraseña incorrecta se rechaza y la correcta abre sesión."""
     _, c = visor

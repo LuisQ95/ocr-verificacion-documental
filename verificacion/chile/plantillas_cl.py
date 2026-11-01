@@ -11,7 +11,7 @@ import pymupdf
 import numpy as np
 
 from .. import config as C
-from ..plantillas import dibujos_pdf, palabras_pdf
+from ..pdf import dibujos_pdf, palabras_pdf
 
 ARCHIVOS = {"hoja_vida_p1": ("hoja_vida_conductor.pdf", 0), "hoja_vida_p2": ("hoja_vida_conductor.pdf", 1),
             "ameco_rev02": ("ameco_certificado_competencia_rev02.pdf", 0),

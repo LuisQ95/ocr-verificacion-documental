@@ -16,11 +16,14 @@ import re
 from datetime import date
 
 from rapidfuzz import fuzz
+from rapidfuzz.distance import Levenshtein
 
+from .. import campos as K
 from .. import config as C
-from .. import comparacion as K
+from ..cajas import iou
 from . import hvid_cuerpo as HV
 from . import normalizar_cl as N
+from .lectura_cl import parsear_timbre
 
 IGUAL, TOLERADO, DIFERENTE, DUDOSO = K.IGUAL, K.TOLERADO, K.DIFERENTE, K.DUDOSO
 DESACT_C, NO_APLICA = K.DESACTUALIZADO_C, K.NO_APLICA
@@ -36,11 +39,6 @@ FUENTES_VALIDAS = {
                     "Verdana-Italic", "TimesNewRoman", "TimesNewRomanPSMT"},
 }
 """Fuentes de los documentos genuinos; las de un documento rehecho en Word o Canva son otras."""
-
-
-def _senal(tipo, severidad, detalle):
-    """Señal técnica: severidad "fraude", "observacion" o "info"."""
-    return {"tipo": tipo, "severidad": severidad, "detalle": detalle}
 
 
 def valor_json(js, clave):
@@ -77,7 +75,6 @@ ZONAS_EVALUADOR = ("evaluador1_nombre", "evaluador2_nombre", "evaluador_de_compe
 
 def _parecido_ocr(a, b, max_dist=2):
     """Diferencia del tamaño de un error de lectura (1-2 caracteres): en OCR no basta para acusar."""
-    from rapidfuzz.distance import Levenshtein
     return Levenshtein.distance(a, b) <= max_dist
 
 
@@ -215,7 +212,7 @@ def _comparar_valor(tipo, oficial, leido, es_ocr, conf, zona=""):
         return TOLERADO, "solo difieren tildes, mayúsculas o puntuación"
     if K.cambia_negacion(of, le):
         return diferente("cambia una negación")
-    if es_ocr and K.normalizar(of, "descriptivo", True) == K.normalizar(le, "descriptivo", True):
+    if es_ocr and K.clave_ocr(of) == K.clave_ocr(le):
         return TOLERADO, "solo difieren caracteres confundibles del OCR"
     if es_ocr and tipo == "descriptivo" and len(ko) >= 14 and fuzz.ratio(ko, kl) >= 92:
         return TOLERADO, "texto casi idéntico (ruido de OCR)"
@@ -229,13 +226,34 @@ def _renovacion_plausible(fecha_doc, fecha_oficial):
     return bool(fecha_doc and fecha_oficial and (fecha_oficial - fecha_doc).days >= DIAS_MIN_RENOVACION)
 
 
+def _fila_unica_sin_clase(lo, oficiales, filas, usadas):
+    """[índice] de la fila del documento que solo puede ser la licencia oficial `lo`, o [] si no hay una sola.
+
+    Caso: la clase de la fila no se leyó (una letra suelta que el detector no ve o lee mal) y su fecha no es la oficial
+    ni la de otra licencia. Si en el documento hay UNA sola fila así del mismo registro (PRIMERA/ULTIMA) y municipalidad,
+    y entre las licencias oficiales de ese registro `lo` es la ÚNICA que no aparece con su clase ni con su fecha, son la
+    misma licencia: su fecha se compara (es la técnica de quien cambia la fecha de una licencia)."""
+    def aparece(o):
+        """True si la licencia oficial `o` figura en el documento con su clase o, sin clase, con su fecha."""
+        return any(ld["Registro"] == o["Registro"] and (N.codigo_ocr(ld["Clase"]) == N.codigo_ocr(o["Clase"])
+                                                        or not ld["Clase"] and ld["fecha"] == o["fecha"]) for ld in filas)
+
+    faltan = [o for o in oficiales if o["Registro"] == lo["Registro"] and not aparece(o)]
+    fechas = {o["fecha"] for o in oficiales if o["Registro"] == lo["Registro"]}
+    cand = [j for j, ld in enumerate(filas) if j not in usadas and not ld["Clase"] and ld["Registro"] == lo["Registro"]
+            and ld["fecha"] and ld["fecha"] not in fechas
+            and N.clave_texto(ld["Municipalidad"]) == N.clave_texto(lo["Municipalidad"])]
+    return cand if len(cand) == 1 and faltan == [lo] else []
+
+
 def _comparar_filas(doc_filas, js, emision, es_ocr, tiene_p2=True):
     """Licencias, anotaciones y antecedentes: conjuntos de filas. Un registro oficial anterior a la emisión
     que no figura en el documento = ocultado; uno posterior = documento desactualizado.
 
     - Licencias: clave (registro, clase); se comparan fecha y municipalidad. Con OCR, si no se detectó la clase, es la
       misma fila cuando coinciden registro y fecha, o cuando la licencia oficial se renovó después de la emisión y la
-      fila muestra una fecha anterior que no es la de ninguna otra licencia (la fila antes de renovarse). Una fila
+      fila muestra una fecha anterior que no es la de ninguna otra licencia (la fila antes de renovarse), o cuando es
+      la única fila sin clase que puede corresponderle (_fila_unica_sin_clase). Una fila
       "nueva" solo acusa si está bien formada (clase existente y fecha válida).
     - Anotaciones: se emparejan por fecha de anotación o por tipo y detalle. Sin la página 2, una anotación cortada
       al final de la página 1 (su fecha quedó en la página 2) se compara solo en lo que se ve. Un encabezado suelto
@@ -266,6 +284,8 @@ def _comparar_filas(doc_filas, js, emision, es_ocr, tiene_p2=True):
             cand = [j for j, ld in enumerate(doc_filas["licencias"]) if j not in usadas and not ld["Clase"]
                     and ld["Registro"] == lo["Registro"] and _renovacion_plausible(ld["fecha"], lo["fecha"])
                     and not any(o["Registro"] == ld["Registro"] and o["fecha"] == ld["fecha"] for o in of["licencias"])]
+        if not cand and es_ocr:
+            cand = _fila_unica_sin_clase(lo, of["licencias"], doc_filas["licencias"], usadas)
         nombre = f"licencia {lo['Registro'].lower()} clase {lo['Clase']}"
         if not cand:
             e, m = estado_falta(lo["fecha"], "licencia")
@@ -368,7 +388,6 @@ def senales_codigos(doc, valores):
     cod = doc.get("codigos") or {}
     folio = N.codigo(valores.get("folio", {}).get("texto", ""))
     for texto in cod.get("timbre", []):
-        from .lectura_cl import parsear_timbre
         t = parsear_timbre(texto)
         if not t:
             continue
@@ -387,23 +406,15 @@ def senales_codigos(doc, valores):
             if not doc.get("es_ocr") or valores.get("fecha_emision", {}).get("conf", 1) >= C.CONF_OCR_ALTA:
                 dif.append(f"fecha de emisión {t['FE'][:10]} vs impresa {fe}")
         if dif:
-            s.append(_senal("timbre", "fraude", "el timbre electrónico no coincide con lo impreso: " + "; ".join(dif)))
+            s.append(K.senal("timbre", "fraude", "el timbre electrónico no coincide con lo impreso: " + "; ".join(dif)))
         else:
-            s.append(_senal("timbre", "info", "timbre electrónico legible y coherente con lo impreso"))
+            s.append(K.senal("timbre", "info", "timbre electrónico legible y coherente con lo impreso"))
         break
     for b in cod.get("barras", []):
         if folio and N.codigo(b) != folio and re.fullmatch(r"\d{12}", N.codigo(b)) and not doc.get("es_ocr"):
-            s.append(_senal("codigo_barras", "fraude",
+            s.append(K.senal("codigo_barras", "fraude",
                              f"el código de barras ({b}) no coincide con el folio impreso ({folio})"))
     return s
-
-
-def _iou(a, b):
-    """Intersección sobre unión de dos rectángulos."""
-    x0, y0, x1, y1 = max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])
-    inter = max(0, x1 - x0) * max(0, y1 - y0)
-    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
-    return inter / union if union > 0 else 0.0
 
 
 def senales_nativo(doc, plantilla):
@@ -417,7 +428,7 @@ def senales_nativo(doc, plantilla):
     """
     objetos = dict(doc.get("objetos") or {})
     objetos["imagenes"] = [r for r in objetos.get("imagenes", [])
-                           if not any(_iou(r, e) > 0.6 for e in plantilla.get("imagenes_esperadas", []))]
+                           if not any(iou(r, e) > 0.6 for e in plantilla.get("imagenes_esperadas", []))]
     s = K.senales_objetos(dict(doc, objetos=objetos), plantilla)
     for x in s:
         if x["tipo"] == "anotacion" and re.search(r"'(Highlight|Underline|Squiggly)'", x["detalle"]):
@@ -427,16 +438,39 @@ def senales_nativo(doc, plantilla):
             x.update(severidad="observacion", detalle=x["detalle"] + " (formato COPIA: marca de agua propia)")
     meta = doc.get("meta") or {}
     if meta.get("producer"):
-        s.append(_senal("metadatos", "info", f"PDF producido con '{meta.get('producer')}'"))
+        s.append(K.senal("metadatos", "info", f"PDF producido con '{meta.get('producer')}'"))
     if (doc.get("revisiones_pdf") or 1) > 1:
-        s.append(_senal("metadatos", "info",
+        s.append(K.senal("metadatos", "info",
                              f"el PDF tiene {doc['revisiones_pdf']} versiones guardadas (edición incremental)"))
     validas = FUENTES_VALIDAS["hoja_vida" if plantilla["tipo_documento"] == "hoja_vida" else plantilla["id"]]
     ajenas = sorted({K.fuente_base(p["font"]) for p in doc.get("palabras_valor", []) if p.get("font")}
                     - {K.fuente_base(f) for f in validas} - validas)
     if ajenas:
-        s.append(_senal("fuentes", "observacion", f"tipografía que no usa el emisor en los datos: {', '.join(ajenas[:4])}"))
+        s.append(K.senal("fuentes", "observacion", f"tipografía que no usa el emisor en los datos: {', '.join(ajenas[:4])}"))
     return s
+
+
+MOTIVOS_LECTURA_FALLIDA = ("fecha ilegible", "RUT ilegible", "número ilegible", "el OCR no leyó", "lectura incompleta",
+                           "difiere en 1-2", "difiere en pocos", "no es un valor posible", "clases con códigos")
+"""Motivos de DUDOSO que describen una lectura fallida (algo inválido o casi igual al oficial), no un valor distinto."""
+CONF_PRIORIDAD_ALTA = 0.5
+"""Confianza desde la cual un valor distinto (pero no concluyente) leído en un documento OBSERVADO lo pone primero
+en la revisión. Medido en el subconjunto de ajuste."""
+ALTA, BAJA = "ALTA", "BAJA"
+
+
+def prioridad_revision(campos, senales):
+    """Prioridad de un documento OBSERVADO en la revisión humana.
+
+    ALTA: un indicio técnico (objeto superpuesto, tipografía ajena, timbre...) o un valor distinto al oficial leído con
+    confianza de al menos CONF_PRIORIDAD_ALTA. BAJA: solo lecturas fallidas o la página que falta. No cambia el
+    dictamen: ordena la revisión para que las falsificaciones probables se vean primero."""
+    if any(s["severidad"] == "observacion" and s["tipo"] != "paginas" for s in senales):
+        return ALTA
+    if any(c["estado"] == DUDOSO and c["conf"] >= CONF_PRIORIDAD_ALTA and c["postulante"]
+           and not c["motivo"].startswith(MOTIVOS_LECTURA_FALLIDA) for c in campos):
+        return ALTA
+    return BAJA
 
 
 def veredicto(campos, senales, ilegible=False, copia=False, desactualizado=False):
@@ -486,7 +520,7 @@ def comparar_documento(doc, js, plantillas_doc, declarado, hoy):
     if doc.get("ilegible"):
         pass
     elif js is None:
-        senales.append(_senal("fuente_oficial", "observacion", "no hay dato oficial (JSON) para comparar este documento"))
+        senales.append(K.senal("fuente_oficial", "observacion", "no hay dato oficial (JSON) para comparar este documento"))
     else:
         for zona, info in plantillas_doc.items():
             if not info["clave"]:
@@ -523,7 +557,7 @@ def comparar_documento(doc, js, plantillas_doc, declarado, hoy):
         N.rut_ocr(valores.get("run", valores.get("rut", {})).get("texto", ""))
     conf_id = valores.get("run", valores.get("rut", {})).get("conf", 1.0)
     if declarado.get("rut") and run_doc and N.rut_valido(run_doc) and run_doc != N.rut(declarado["rut"]):
-        senales.append(_senal("identidad", "fraude" if (not es_ocr or conf_id >= C.CONF_OCR_ALTA) else "observacion",
+        senales.append(K.senal("identidad", "fraude" if (not es_ocr or conf_id >= C.CONF_OCR_ALTA) else "observacion",
                               f"el documento está a nombre de otro RUT ({run_doc}); "
                               f"el postulante declaró {declarado['rut']}"))
 
@@ -532,14 +566,15 @@ def comparar_documento(doc, js, plantillas_doc, declarado, hoy):
         dias = (hoy - emision).days
         if dias > C.HVID_DIAS_VIGENCIA:
             desactualizado = True
-            senales.append(_senal("vigencia", "info",
+            senales.append(K.senal("vigencia", "info",
                                   f"Hoja de Vida emitida hace {dias} días (máximo {C.HVID_DIAS_VIGENCIA})"))
     if doc.get("copia"):
-        senales.append(_senal("copia", "info", "versión 'COPIA, no válida como certificado': se requiere el original"))
+        senales.append(K.senal("copia", "info", "versión 'COPIA, no válida como certificado': se requiere el original"))
     if doc.get("pagina_faltante"):
-        senales.append(_senal("paginas", "observacion", doc["pagina_faltante"]))
+        senales.append(K.senal("paginas", "observacion", doc["pagina_faltante"]))
     v, motivos = veredicto(campos, senales, ilegible=doc.get("ilegible", False), copia=doc.get("copia", False),
                            desactualizado=desactualizado)
     if doc.get("ilegible"):
         motivos = [doc.get("motivo_ilegible", "no se pudo leer el documento")] + motivos
-    return {"veredicto": v, "campos": campos, "senales": senales, "motivos": motivos, "emision": str(emision or "")}
+    return {"veredicto": v, "campos": campos, "senales": senales, "motivos": motivos, "emision": str(emision or ""),
+            "prioridad_revision": prioridad_revision(campos, senales) if v == OBSERVADO else ""}

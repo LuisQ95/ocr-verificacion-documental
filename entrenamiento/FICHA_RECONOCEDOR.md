@@ -196,3 +196,41 @@ ajuste y se agregaron reglas en `verificacion/chile/comparar_cl.py` (tests en `t
 En ambos subconjuntos solo cambiaron documentos genuinos (de OBSERVADO a AUTÉNTICO o DESACTUALIZADO): ninguna
 falsificación cambió de dictamen. Lo que sigue en revisión es, sobre todo, la Hoja de Vida sin página 2 (correcto),
 fechas a las que el detector no les vio el día (un "9" suelto) y fotos con texto de otro documento superpuesto.
+
+## 8. Revisión integral: limpieza, rendimiento y reglas (2026-10-31)
+
+**Sin cambio de dictámenes (verificado):** seguridad del visor de pruebas, optimizaciones de lectura (cada página de
+PDF se leía y extraía varias veces) y limpieza del código del flujo anterior (−1 580 líneas). En el subconjunto de
+ajuste los 950 documentos dieron el mismo dictamen, el mismo estado y el mismo texto leído en cada campo, y la
+medición pasó de 880 s a 678 s.
+
+**Mejoras de lectura y reglas** (diseñadas en ajuste, confirmadas en reservado):
+
+- **Caracteres sueltos** (`verificacion/ocr.py`): en la sección variable de la Hoja de Vida, la tinta del tamaño de
+  1 a 3 caracteres que el detector dejó fuera de toda caja se lee aparte (la clase "D" de una licencia, el día de una
+  fecha). Se conserva solo con confianza ≥ 0,5.
+- **Licencia sin clase leída con la fecha cambiada** (`comparar_cl._fila_unica_sin_clase`): si una fila sin clase
+  es la única que puede ser la licencia oficial que falta (mismo registro y municipalidad), se comparan sus fechas.
+  Era la técnica "renovar licencia" que quedaba en revisión.
+- **Timbre electrónico:** en PDF nativos se reintenta a 400 DPI (a 300 DPI se leía en un tercio de las Hojas de Vida
+  nativas; a 400, en todas las probadas); en fotos de Hoja de Vida se prueban umbral adaptativo, Otsu y ampliación
+  (recupera ~15 % de los timbres que no se leían).
+- **Páginas de la Hoja de Vida en fotos sueltas** se juntan por folio, código y fecha de emisión, no solo por orden.
+- **Prioridad de revisión** (ALTA / BAJA) en los documentos OBSERVADO: ALTA si hay un indicio técnico o un valor
+  distinto leído con confianza ≥ 0,5. No cambia dictámenes; ordena la revisión.
+
+| | ajuste antes | **ajuste ahora** | reservado antes | **reservado ahora** |
+|---|---|---|---|---|
+| Falsificaciones detectadas | 234/267 | **239/267** | 221/253 | **223/253** |
+| Falsificaciones escapadas (AUTÉNTICO) | 1 | 1 | 0 | 0 |
+| Genuinos acusados (FALSIFICADO) | 0/626 | 0/626 | 2/634 | 4/634 (ver nota) |
+| Genuinos a revisión (OBSERVADO) | 52 | **51** | 55 | **51** |
+| OBSERVADO con prioridad ALTA: falsos / genuinos | — | 8 / 6 | — | 10 / 7 |
+
+"Antes" en ajuste es el entorno actual (Python 3.12, Pillow 13); en reservado es la última medición disponible, con
+Python 3.10 y Pillow 11. **Nota:** los 2 genuinos acusados nuevos de reservado (un AMECO en foto y una Hoja de Vida
+COPIA por WhatsApp) se acusan igual sin las reglas nuevas: vienen del cambio a Pillow 13, que decodifica JPEG con
+píxeles levemente distintos y cuyo efecto solo se había medido en ajuste. Quedan por analizar.
+
+No se adoptó: tratar como falsificada una anotación oficial que no aparece cuando no queda ninguna anotación sin
+emparejar (técnica "borrar anotaciones negativas"); en ajuste también aparecía en 2 genuinos.

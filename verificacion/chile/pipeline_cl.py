@@ -28,9 +28,10 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from .. import comparacion as KV
+from .. import campos as KC
 from .. import config as C
 from .. import recursos as R
+from ..cajas import centro, dentro
 from ..reporte import escribir_reporte
 from . import comparar_cl as K
 from . import extraccion_cl as EX
@@ -129,47 +130,59 @@ def paginas_de_unidad(r):
                                                     f"({d.get('alineacion_motivo')})")
         else:
             p["imagen_ocr"] = d["imagen_ocr"]
-            p["escala_ocr"] = d.get("escala_ocr", 1)
         out.append(p)
     if not out:
         out.append(base | {"plantilla": None, "ilegible": True, "motivo_ilegible": "imagen sin documento reconocible"})
     return out
 
 
-def leer_ocr(paginas, usar_gpu, log=print, al_leer=None):
-    """OCR (GPU) de las páginas alineadas, por lotes. Devuelve el nombre del modelo usado.
+def crear_lector(usar_gpu):
+    """Lector OCR (detector + reconocedor) en GPU, con su límite de VRAM, o en CPU.
 
-    El modelo adoptado lee palabras completas (hasta 30 caracteres): no se parten los recortes largos. Si una imagen
-    se alineó a otra escala, las zonas se escalan y las cajas leídas se devuelven a puntos de la plantilla.
+    El modelo adoptado lee palabras completas (hasta 30 caracteres): no se parten los recortes largos.
     """
-    pend = [p for p in paginas if "imagen_ocr" in p]
-    if not pend:
-        return "no se usó OCR"
     from ..ocr import LectorOCR
     if usar_gpu:
         R.limitar_gpu(C.PRESUPUESTO_VRAM_OCR_GB)
     lector = LectorOCR(dispositivo=None if usar_gpu else "cpu")
     lector.max_aspecto = 15.0
+    return lector
+
+
+def liberar_lector(lector):
+    """Descarga un lector OCR y devuelve su memoria de GPU."""
+    del lector
+    import torch
+    torch.cuda.empty_cache()
+
+
+def leer_ocr(paginas, usar_gpu, log=print, al_leer=None, lector=None):
+    """OCR (GPU) de las páginas alineadas, por lotes. Devuelve el nombre del modelo usado.
+
+    `lector`: uno ya cargado (se reutiliza y no se descarga); sin él se carga uno y se descarga al terminar. Las
+    páginas llegan alineadas a la resolución de la plantilla: las cajas leídas quedan en puntos de la plantilla.
+    """
+    pend = [p for p in paginas if "imagen_ocr" in p]
+    if not pend:
+        return "no se usó OCR"
+    propio = lector is None
+    lector = crear_lector(usar_gpu) if propio else lector
     log(f"OCR: {lector.nombre_modelo} en {lector.dispositivo} | {len(pend)} páginas")
     pl = P.cargar()
     for i in range(0, len(pend), C.OCR_BATCH_PAGINAS):
         lote = pend[i:i + C.OCR_BATCH_PAGINAS]
-        zonas = [[{"rect": [v * p.get("escala_ocr", 1) for v in z["rect"]], "nombre": n, "tipo": z["tipo"]}
+        zonas = [[{"rect": z["rect"], "nombre": n, "tipo": z["tipo"]}
                   for n, z in pl[p["plantilla"]]["zonas"].items() if z["tipo"] != "cuerpo"] for p in lote]
-        palabras = lector.leer([p["imagen_ocr"] for p in lote], zonas)
+        libres = [[z["rect"] for z in pl[p["plantilla"]]["zonas"].values() if z["tipo"] == "cuerpo"] for p in lote]
+        palabras = lector.leer([p["imagen_ocr"] for p in lote], zonas, libres)
         for p, pw in zip(lote, palabras):
-            f = p.get("escala_ocr", 1)
-            if f != 1:
-                for w in pw:
-                    w["bbox"] = [v / f for v in w["bbox"]]
             p["palabras"] = pw
             del p["imagen_ocr"]
         if al_leer:
             al_leer(i + len(lote), len(pend))
     nombre = lector.nombre_modelo
-    del lector
-    import torch
-    torch.cuda.empty_cache()
+    if propio:
+        liberar_lector(lector)
     return nombre
 
 
@@ -181,30 +194,41 @@ def valores_de_pagina(p, pl):
     """
     tpl = pl[p["plantilla"]]
     palabras = p.get("palabras") or []
-    asig = KV.asignar_palabras(palabras, tpl)
+    asig = KC.asignar_palabras(palabras, tpl)
     p["valores"] = asig["valores"]
     p["cobertura_etiquetas"] = asig["cobertura_etiquetas"]
     rects = [z["rect"] for z in tpl["zonas"].values() if z["tipo"] != "cuerpo"]
-    def centro(b):
-        """Centro de una caja (x0, y0, x1, y1)."""
-        return (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
-
-    p["palabras_valor"] = [w for w in palabras if any(r[0] <= centro(w["bbox"])[0] <= r[2]
-                                                      and r[1] <= centro(w["bbox"])[1] <= r[3] for r in rects)]
+    p["palabras_valor"] = [w for w in palabras if any(dentro(centro(w["bbox"]), r) for r in rects)]
     if "cuerpo" in tpl["zonas"]:
         r = tpl["zonas"]["cuerpo"]["rect"]
-        p["lineas_cuerpo"] = HV.lineas([w for w in palabras if r[0] <= centro(w["bbox"])[0] <= r[2]
-                                        and r[1] <= centro(w["bbox"])[1] <= r[3]])
+        p["lineas_cuerpo"] = HV.lineas([w for w in palabras if dentro(centro(w["bbox"]), r)])
     if p.get("es_ocr"):
         texto = " ".join(w["texto"] for w in palabras).upper()
         p["copia"] = "COPIA" in texto and ("VALID" in texto or "CERTIFICADO" in texto.split("COPIA", 1)[1][:80])
-    if p.get("es_ocr") and asig["cobertura_etiquetas"] < 0.25 and not p.get("ilegible"):
+    if p.get("es_ocr") and asig["cobertura_etiquetas"] < C.MIN_COBERTURA_ETIQUETAS_OCR and not p.get("ilegible"):
         p.update(ilegible=True, motivo_ilegible=f"casi no se leen las etiquetas del formato "
                                                 f"({asig['cobertura_etiquetas']:.0%}): imagen ilegible o muy pequeña")
 
 
+CAMPOS_EMISION_HV = ("folio", "codigo_verificacion", "fecha_emision")
+"""Datos de la emisión que se imprimen en las dos páginas de la Hoja de Vida: identifican a qué emisión pertenece
+cada página."""
+
+
+def _coincidencias_hv(p1, p2):
+    """Cuántos datos de la emisión (folio, código de verificación, fecha de emisión) leídos en ambas páginas
+    coinciden."""
+    v1, v2 = p1.get("valores") or {}, p2.get("valores") or {}
+    return sum(1 for z in CAMPOS_EMISION_HV
+               if N.codigo_ocr(v1.get(z, {}).get("texto", "")) and
+               N.codigo_ocr(v1.get(z, {}).get("texto", "")) == N.codigo_ocr(v2.get(z, {}).get("texto", "")))
+
+
 def agrupar(paginas):
-    """Páginas -> documentos. La Hoja de Vida junta su página 1 y 2 (mismo archivo; si no, en orden de archivo)."""
+    """Páginas -> documentos. La Hoja de Vida junta su página 1 y 2: las del mismo archivo, en orden; las que vienen
+    en archivos separados, por los datos de la emisión que ambas páginas repiten (folio, código, fecha de emisión) y,
+    a igualdad, en orden de archivo. Así, dos Hojas de Vida de distintas fechas entregadas en fotos sueltas no se
+    mezclan."""
     docs, hv1, hv2 = [], [], []
     por_archivo = defaultdict(list)
     for p in paginas:
@@ -221,7 +245,10 @@ def agrupar(paginas):
         hv1 += p1
         hv2 += p2
     while hv1 and hv2:
-        docs.append([hv1.pop(0), hv2.pop(0)])
+        a = hv1.pop(0)
+        b = max(hv2, key=lambda q: (_coincidencias_hv(a, q), -hv2.index(q)))
+        hv2.remove(b)
+        docs.append([a, b])
     docs += [[p] for p in hv1 + hv2]
     return docs
 
@@ -258,7 +285,7 @@ def unir_documento(ps, pl):
     for p in ps:
         if not p.get("plantilla") or p.get("ilegible"):
             continue
-        suf = " (pág. 2)" if p["plantilla"] == "hoja_vida_p2" else ""
+        suf = K.SUFIJO_P2 if p["plantilla"] == "hoja_vida_p2" else ""
         for z, v in (p.get("valores") or {}).items():
             doc["valores"][z + suf] = v
         for z, info in pl[p["plantilla"]]["zonas"].items():
@@ -272,13 +299,13 @@ def unir_documento(ps, pl):
             doc["revisiones_pdf"] = p.get("revisiones_pdf")
     if tipo == "hoja_vida":
         doc["filas"] = HV.parsear([p.get("lineas_cuerpo", []) for p in ps if not p.get("ilegible")])
-        doc["senales"] += K.senales_codigos(doc, {z: v for z, v in doc["valores"].items() if "(pág. 2)" not in z})
+        doc["senales"] += K.senales_codigos(doc, {z: v for z, v in doc["valores"].items() if not z.endswith(K.SUFIJO_P2)})
     doc["zonas"] = zonas_doc
     doc["formato_ajeno"] = {}
     for p in ps:
         if not p.get("plantilla") or p.get("ilegible"):
             continue
-        suf = " (pág. 2)" if p["plantilla"] == "hoja_vida_p2" else ""
+        suf = K.SUFIJO_P2 if p["plantilla"] == "hoja_vida_p2" else ""
         fijas = pl[p["plantilla"]]["palabras_fijas"]
         for z, info in pl[p["plantilla"]]["zonas"].items():
             r = info["rect"]
@@ -367,7 +394,18 @@ def _fila(doc, r, archivo_oficial):
             "veredicto": r["veredicto"], "motivos": r["motivos"], "campos": r["campos"], "senales": r["senales"],
             "misma_instancia": None, "archivo_oficial": archivo_oficial, "alineacion_ok": not doc.get("ilegible"),
             "alineacion": {}, "residual_etiquetas_pt": None, "producer": (doc.get("meta") or {}).get("producer", ""),
-            "emision": r.get("emision", "")}
+            "emision": r.get("emision", ""), "prioridad_revision": r.get("prioridad_revision", "")}
+
+
+def nombres_unicos(filas):
+    """Agrega " (2)", " (3)"... al nombre de los documentos repetidos de una carpeta: el reporte usa el nombre como
+    clave."""
+    vistos = Counter()
+    for f in filas:
+        vistos[f["archivo"]] += 1
+        if vistos[f["archivo"]] > 1:
+            f["archivo"] = f"{f['archivo']} ({vistos[f['archivo']]})"
+    return filas
 
 
 def huella_version():
@@ -420,11 +458,7 @@ def verificar(carpetas, registro, dir_post=C.DIR_POSTULANTES, dir_web=C.DIR_WEB,
     personas, documentos = [], []
     for c in carpetas:
         persona, filas = dictaminar(c, por_carpeta.get(c, []), registro, Path(dir_web), req, hoy, pl)
-        vistos = Counter()
-        for f in filas:
-            vistos[f["archivo"]] += 1
-            if vistos[f["archivo"]] > 1:
-                f["archivo"] = f"{f['archivo']} ({vistos[f['archivo']]})"
+        nombres_unicos(filas)
         personas.append(persona)
         documentos += filas
     meta = {"fecha": datetime.now().isoformat(timespec="seconds"), "huella_version": huella_version(),

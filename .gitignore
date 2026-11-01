@@ -32,7 +32,7 @@ entrenamiento/testing_v2/
 entrenamiento/piloto*/
 entrenamiento/vocabulario_v2.json
 
-# ---------------------------------------------------------------- modelos y resultados (los pesos van en un Release)
+# ---------------------------------------------------------------- modelos y resultados (los pesos no se publican)
 modelos/
 resultados/
 

@@ -273,7 +273,7 @@ function tarjeta(r) {
   const esperados = r.esperados.map((e) => `<tr><td>${esc(e.documento)}</td><td>${chip(e.estado)}${e.nota ? `<div class="nota">${esc(e.nota)}</div>` : ""}</td>
       <td>${e.veredictos.map(chip).join(" ") || "—"}</td><td>${e.archivos.map(esc).join("<br>") || "—"}</td></tr>`).join("");
   const extra = r.documentos.filter((d) => !/^(hoja_vida|ameco)/.test(d.tipo));
-  const docs = r.documentos.map((d) => `<details><summary>${chip(d.veredicto)} ${esc(d.archivo)}
+  const docs = r.documentos.map((d) => `<details><summary>${chip(d.veredicto)}${d.prioridad_revision === "ALTA" ? ` <span class="nota"><b>revisar primero</b></span>` : ""} ${esc(d.archivo)}
       <span class="nota">· ${esc(d.formato || "")}${d.archivo_oficial ? " · comparado con " + esc(d.archivo_oficial) : ""}</span></summary>
       ${d.motivos.length ? `<ul class="motivos">${d.motivos.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : `<p class="nota">Sin observaciones.</p>`}
       ${d.campos.length ? `<div class="tabla"><table><tr><th>Campo</th><th>Dato oficial (JSON)</th><th>Leído en el documento</th><th>Estado</th><th>Motivo</th></tr>

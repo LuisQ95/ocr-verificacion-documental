@@ -136,6 +136,32 @@ def test_licencia_renovada_despues_de_la_emision_sin_clase_leida():
     assert K.DUDOSO in estados(fila(date(2026, 7, 11), "D"))
 
 
+def test_fecha_cambiada_en_una_licencia_sin_clase_leida():
+    """Si la clase de una fila no se leyó, pero es la única fila que puede ser la licencia oficial que falta (mismo
+    registro y municipalidad), su fecha distinta leída con confianza alta acusa; con dos filas posibles no se elige."""
+    lic = [{"Registro": "ULTIMA", "Clase": "B", "Fecha otorgamiento": "07-01-2022", "Municipalidad": "PUERTO MONTT"},
+           {"Registro": "ULTIMA", "Clase": "D", "Fecha otorgamiento": "04-01-2021", "Municipalidad": "PUERTO MONTT"}]
+    js = dict(JS_HV, Anotaciones=[], **{"Licencias registradas": lic})
+
+    def filas(*sin_clase):
+        """La licencia B leída tal cual y filas sin clase con las fechas dadas."""
+        def f(clase, fecha):
+            """Una fila ÚLTIMA leída con confianza alta."""
+            return {"Registro": "ULTIMA", "Clase": clase, "fecha": fecha, "fecha_txt": f"{fecha:%d-%m-%Y}",
+                    "Municipalidad": "PUERTO MONTT", "conf": 0.95}
+        return {"licencias": [f("B", date(2022, 1, 7))] + [f("", x) for x in sin_clase], "anotaciones": [],
+                "conf_min": 0.95, "antecedentes": {"PRN": "SIN ANTECEDENTES", "RNC": "SIN ANTECEDENTES"}}
+
+    def fecha_d(f):
+        """Estado de la fecha de la licencia D emparejada (None si no se emparejó), con emisión el 26-09-2026."""
+        return next((c["estado"] for c in K._comparar_filas(f, js, date(2026, 9, 26), True)
+                     if c["zona"] == "licencia ultima clase D - fecha"), None)
+
+    assert fecha_d(filas(date(2026, 3, 7))) == K.DIFERENTE
+    assert fecha_d(filas(date(2026, 3, 7), date(2025, 2, 1))) is None
+    assert fecha_d(filas(date(2021, 1, 4))) == K.IGUAL
+
+
 def test_clase_inexistente_no_pasa_como_igual():
     """"A44" puede ser una clase A4 agregada y mal leída: se revisa, no se da por auténtica."""
     assert K.comparar_valor("clases", "B-A1-A5", "B-A1-A44-A5", True, 0.99)[0] == K.DUDOSO

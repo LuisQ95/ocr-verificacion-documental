@@ -47,11 +47,15 @@ MAX_ARCHIVOS_POSTULANTE, MAX_MB_ARCHIVO = 10, 25
 MAX_ARCHIVOS_OFICIALES, MAX_MB_JSON = 10, 2
 MAX_CUERPO = 300 * 1024 * 1024
 """Tamaño máximo de la petición: el base64 de todos los archivos admitidos, con margen."""
+MAX_CUERPO_CORTO = 64 * 1024
+"""Tamaño máximo de las peticiones sin archivos (inicio de sesión, validación de la identidad)."""
 MAX_RESULTADOS_SESION = 50
 MAX_INTENTOS, BLOQUEO_S = 5, 15 * 60
 
 app = FastAPI(title="Visor de pruebas", docs_url=None, redoc_url=None, openapi_url=None)
 _cfg = A.cargar()
+_cfg_version = A.version(A.RUTA)
+"""Versión (fecha de modificación) de acceso.json leída: si el archivo cambia, se relee sin reiniciar el visor."""
 _sesiones = {}
 """token -> {"ultimo": t, "resultados": {id: resultado}}"""
 _trabajos = {}
@@ -62,11 +66,21 @@ _cola = queue.Queue()
 _bloqueo = threading.Lock()
 
 
+def _config():
+    """Configuración de acceso vigente. Se relee cuando acceso.json cambia: agregar o quitar una IP, o cambiar la
+    contraseña, rige desde la petición siguiente."""
+    global _cfg, _cfg_version
+    v = A.version(A.RUTA)
+    if v != _cfg_version:
+        _cfg, _cfg_version = A.cargar(A.RUTA), v
+    return _cfg
+
+
 @app.middleware("http")
 async def _solo_ips_permitidas(request: Request, call_next):
     """Rechaza (403) toda petición de una IP no permitida y agrega cabeceras de seguridad a las respuestas."""
     ip = request.client.host if request.client else ""
-    if not A.ip_permitida(ip, _cfg):
+    if not A.ip_permitida(ip, _config()):
         return Response("Acceso no permitido", status_code=403)
     respuesta = await call_next(request)
     respuesta.headers["Cache-Control"] = "no-store"
@@ -112,8 +126,8 @@ async def login(request: Request):
     intentos, hasta = _fallos.get(ip, (0, 0))
     if hasta > time.time():
         raise HTTPException(429, f"Demasiados intentos. Espere {int((hasta - time.time()) / 60) + 1} min.")
-    datos = await request.json()
-    if not A.clave_correcta(str(datos.get("clave", "")), _cfg.get("clave")):
+    datos = await _cuerpo_json(request, MAX_CUERPO_CORTO)
+    if not A.clave_correcta(str(datos.get("clave", "")), _config().get("clave")):
         intentos += 1
         _fallos[ip] = (0, time.time() + BLOQUEO_S) if intentos >= MAX_INTENTOS else (intentos, 0)
         raise HTTPException(401, "Contraseña incorrecta")
@@ -165,27 +179,33 @@ def _decodificar(lista, maximo, mb, que):
     return out
 
 
-async def _cuerpo_json(request: Request):
-    """Cuerpo JSON leído en memoria por partes, cortando con 413 apenas supera MAX_CUERPO."""
-    largo = int(request.headers.get("content-length") or 0)
-    if largo > MAX_CUERPO:
+async def _cuerpo_json(request: Request, maximo=MAX_CUERPO):
+    """Cuerpo JSON (un objeto) leído en memoria por partes, cortando con 413 apenas supera `maximo` bytes."""
+    try:
+        largo = int(request.headers.get("content-length") or 0)
+    except ValueError as exc:
+        raise HTTPException(400, "Petición inválida.") from exc
+    if largo > maximo:
         raise HTTPException(413, "Los archivos superan el tamaño permitido.")
     cuerpo = bytearray()
     async for parte in request.stream():
         cuerpo += parte
-        if len(cuerpo) > MAX_CUERPO:
+        if len(cuerpo) > maximo:
             raise HTTPException(413, "Los archivos superan el tamaño permitido.")
     try:
-        return json.loads(bytes(cuerpo))
+        datos = json.loads(bytes(cuerpo))
     except ValueError as exc:
         raise HTTPException(400, "Petición inválida.") from exc
+    if not isinstance(datos, dict):
+        raise HTTPException(400, "Petición inválida.")
+    return datos
 
 
 @app.post("/api/validar")
 async def validar(request: Request):
     """Validación de la identidad mientras se escribe (sin archivos)."""
     _sesion(request)
-    d = await request.json()
+    d = await _cuerpo_json(request, MAX_CUERPO_CORTO)
     _, errores, adv = M.validar_identidad(d.get("nombres", ""), d.get("apellidos", ""), d.get("rut", ""),
                                           d.get("fecha_nacimiento", ""), d.get("cargo", ""))
     return {"errores": errores, "advertencias": adv}
@@ -306,7 +326,8 @@ def _vista(r, etiqueta):
         "esperados": r["esperados"], "no_admitidos": r["no_admitidos"],
         "sin_datos_oficiales": r["meta"].get("sin_datos_oficiales", False),
         "documentos": [{"archivo": d["archivo"], "tipo": d["tipo_documento"], "formato": d["formato"],
-                        "veredicto": d["veredicto"], "motivos": d["motivos"], "archivo_oficial": d["archivo_oficial"],
+                        "veredicto": d["veredicto"], "prioridad_revision": d.get("prioridad_revision", ""),
+                        "motivos": d["motivos"], "archivo_oficial": d["archivo_oficial"],
                         "campos": [c for c in d["campos"] if c["estado"] not in ("IGUAL", "NO_APLICA")],
                         "senales": [x for x in d["senales"] if x["severidad"] != "info"],
                         "json_extraido": d.get("json_extraido"),
@@ -349,11 +370,13 @@ def borrar(request: Request):
 
 def main():
     """Arranca el visor en la dirección configurada (exige contraseña definida); sin registro de accesos."""
-    if not _cfg.get("clave"):
+    cfg = _config()
+    if not cfg.get("clave"):
         raise SystemExit("Defina primero la contraseña: python -m visor_pruebas.configurar --clave")
-    print(f"Visor de pruebas en http://{_cfg['host']}:{_cfg['puerto']}  "
-          f"(IP permitidas: {', '.join(_cfg['ips_permitidas']) or 'solo esta PC'})", flush=True)
-    uvicorn.run(app, host=_cfg["host"], port=_cfg["puerto"], log_level="warning", access_log=False)
+    print(f"Visor de pruebas en http://{cfg['host']}:{cfg['puerto']}  "
+          f"(IP permitidas: {', '.join(cfg['ips_permitidas']) or 'solo esta PC'}; los cambios de acceso rigen sin "
+          "reiniciar)", flush=True)
+    uvicorn.run(app, host=cfg["host"], port=cfg["puerto"], log_level="warning", access_log=False)
 
 
 if __name__ == "__main__":
