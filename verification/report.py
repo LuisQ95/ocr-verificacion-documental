@@ -10,6 +10,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from . import config as C
 from .fields import (AUTHENTIC, DIFFERENT, DOUBTFUL, EQUAL, FIT, FLAGGED, FORGED, INCOMPLETE, NOT_APPLICABLE,
                      NOT_EVALUABLE, NOT_FIT, OUTDATED, OUTDATED_FIELD)
+from .profiles import ACTIVE as PF
 
 COLORS = {FORGED: "F4C7C3", FLAGGED: "FCE8B2", AUTHENTIC: "B7E1CD", OUTDATED: "C9DAF8",
            DIFFERENT: "F4C7C3", DOUBTFUL: "FCE8B2", OUTDATED_FIELD: "C9DAF8",
@@ -126,7 +127,7 @@ def excel(path, people, documents, meta, rejected_files):
     ws.column_dimensions["B"].width = 90
 
     _sheet(wb.create_sheet("personas"),
-          ["Carpeta", "RUT / documento de identidad", "Identidad declarada", "Autenticidad", "Aptitud", "Motivos de aptitud",
+          ["Carpeta", f"{PF.documents.ID_LABEL} / documento de identidad", "Identidad declarada", "Autenticidad", "Aptitud", "Motivos de aptitud",
            "Documentos",
            "Falsificados", "Observados", "Desactualizados", "Documentos falsificados", "Puesto"],
           [[p["carpeta"], p["dni"], "SÍ" if p["declarado"] else "NO", p["veredicto"], p["aptitud"],

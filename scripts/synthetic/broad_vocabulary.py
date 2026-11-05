@@ -1,11 +1,11 @@
 """Vocabulario amplio de nombres y apellidos (de muchos orígenes) para reentrenar el reconocedor sin que memorice.
 
-En Chile hay personas de todos los orígenes: los nombres no se limitan a los hispanos. Se parte de listas reales de
+Los postulantes pueden ser de cualquier origen: los nombres no se limitan a los hispanos. Se parte de listas reales de
 muchos idiomas y se completa con variaciones generadas según los patrones de cada idioma (sílabas, prefijos y
 sufijos típicos), hasta 4 000 nombres y 12 000 apellidos únicos.
 
 Todo se escribe con el alfabeto que reconoce el modelo (A-Z, Á É Í Ó Ú Ü Ñ, apóstrofo y guion): las demás letras se
-transliteran como aparecerían en un documento chileno (ÖZTÜRK -> OZTURK, GARÇON -> GARCON, STRAßE -> STRASSE).
+transliteran como aparecerían en un documento en español (ÖZTÜRK -> OZTURK, GARÇON -> GARCON, STRAßE -> STRASSE).
 
 Separación: 80 % para entrenar y 20 % RESERVADO solo para la prueba. Lo reservado no contiene ninguna palabra del
 vocabulario anterior (que está en los datos de repaso), así la prueba mide nombres realmente nunca vistos.

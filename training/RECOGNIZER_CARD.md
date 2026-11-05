@@ -251,5 +251,5 @@ primero hay que regenerar los conjuntos v1 con la misma semilla. Esto necesita e
 oficiales:
 
 ```powershell
-python -u -m scripts.synthetic.ocr_training --training 50000 --testing 20000 --seed 20261019
+python -u -m scripts.synthetic.ocr_training --training 50000 --testing 20000 --semilla 20261019
 ```

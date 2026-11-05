@@ -48,7 +48,7 @@ from torch.utils.data import DataLoader, Dataset
 from verification import config as C
 from verification import resources as R
 
-DIR = C.ROOT / "entrenamiento"
+DIR = C.ROOT / "training"
 VOCAB = set(VOCABS["spanish"])
 NORMALIZE = str.maketrans({"\xad": "-", "‐": "-", "‑": "-", "‒": "-", ";": ";"})
 CANDIDATE = C.MODELS_DIR / "parseq_candidato.pt"

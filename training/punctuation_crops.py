@@ -57,7 +57,7 @@ def crop(rnd):
 def write(split, n, seed):
     """Escribe `n` recortes en training/<split>/recortes/lote_99000.zip (mismo formato que los demás lotes)."""
     rnd = random.Random(seed)
-    path = C.ROOT / "entrenamiento" / split / "recortes" / "lote_99000.zip"
+    path = C.ROOT / "training" / split / "recortes" / "lote_99000.zip"
     meta, labels = [], {}
     with zipfile.ZipFile(path, "w") as zf:
         for i in range(n):

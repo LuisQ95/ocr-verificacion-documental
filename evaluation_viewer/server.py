@@ -33,10 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from verification import config as C
 from verification import resources as R
-from verification.profiles.operator_certification import extraction as EX
 from verification import in_memory as M
-from verification.profiles.operator_certification import normalize as N
-from verification.profiles.operator_certification import requirements as Q
+from verification.profiles import ACTIVE as PF
 
 from . import access as A
 
@@ -154,7 +152,7 @@ def logout(request: Request):
 def session(request: Request):
     """Datos para el formulario: cargos configurados, cargo por defecto y límites de carga."""
     _session(request)
-    req = Q.load()
+    req = PF.requirements.load()
     return {"cargos": [c.upper() for c in req["puestos"]], "cargo_por_defecto": req["puesto_por_defecto"].upper(),
             "limites": {"archivos": MAX_APPLICANT_FILES, "mb_archivo": MAX_FILE_MB,
                         "jsons": MAX_OFFICIAL_FILES, "mb_json": MAX_JSON_MB}}
@@ -296,11 +294,11 @@ threading.Thread(target=_worker, daemon=True).start()
 
 def _name_key(name):
     """Nombre normalizado para detectar homónimos."""
-    return N.text_key(N.strip_accents(name))
+    return PF.normalize.text_key(PF.normalize.strip_accents(name))
 
 
 def _labels(results):
-    """Nombre a mostrar: si hay homónimos (mismo nombre, distinto RUT) se agrega la fecha de nacimiento."""
+    """Nombre a mostrar: si hay homónimos (mismo nombre, distinta identidad) se agrega la fecha de nacimiento."""
     by_name = {}
     for r in results:
         by_name.setdefault(_name_key(r["identidad"]["nombre_completo"]), set()).add(r["identidad"]["rut"])
@@ -309,7 +307,7 @@ def _labels(results):
         i = r["identidad"]
         et = i["nombre_completo"]
         if len(by_name[_name_key(et)]) > 1:
-            et += f" ({i['fecha_nacimiento']:%d-%m-%Y})" if i["fecha_nacimiento"] else f" (RUT {i['rut']})"
+            et += f" ({i['fecha_nacimiento']:%d-%m-%Y})" if i["fecha_nacimiento"] else f" ({PF.documents.ID_LABEL} {i['rut']})"
         out[r["id"]] = et
     return out
 
@@ -331,7 +329,7 @@ def _view(r, label):
                         "campos": [c for c in d["campos"] if c["estado"] not in ("IGUAL", "NO_APLICA")],
                         "senales": [x for x in d["senales"] if x["severidad"] != "info"],
                         "json_extraido": d.get("json_extraido"),
-                        "campos_extraidos": EX.flat(d["json_extraido"], d["json_extraido"].get("_confianza", {}))
+                        "campos_extraidos": PF.extraction.flat(d["json_extraido"], d["json_extraido"].get("_confianza", {}))
                         if d.get("json_extraido") else []}
                        for d in r["documentos"]],
     }
@@ -354,7 +352,7 @@ def download_zip(rid: str, request: Request):
     if not r:
         raise HTTPException(404, "No encontrado")
     name = _labels(list(s["resultados"].values()))[rid]
-    file = "verificacion_" + "".join(c if c.isalnum() else "_" for c in N.strip_accents(name)) + ".zip"
+    file = "verificacion_" + "".join(c if c.isalnum() else "_" for c in PF.normalize.strip_accents(name)) + ".zip"
     return Response(M.zip_in_memory(r, name), media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{file}"'})
 

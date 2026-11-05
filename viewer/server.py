@@ -49,7 +49,7 @@ pillow_heif.register_heif_opener()
 VIEWER_DIR = Path(os.environ.get("VIEWER_DATA", C.RESULTS_DIR / "viewer"))
 DB = VIEWER_DIR / "viewer.db"
 PAGE = Path(__file__).parent / "static" / "index.html"
-ALLOWED_ROOTS = [C.APPLICANTS_DIR.resolve(), C.OFFICIAL_DATA_DIR.resolve()]
+ALLOWED_ROOTS = tuple(os.path.realpath(d) + os.sep for d in (C.APPLICANTS_DIR, C.OFFICIAL_DATA_DIR))
 
 @asynccontextmanager
 async def _lifespan(_app):
@@ -370,10 +370,10 @@ def person(folder: str):
 
 def _safe_path(ruta):
     """Ruta resuelta solo si es un archivo dentro de postulant_files o webscrap_files; si no, 404."""
-    p = Path(ruta).resolve()
-    if not any(p.is_relative_to(r) for r in ALLOWED_ROOTS) or not p.is_file():
+    p = os.path.realpath(ruta)
+    if not p.startswith(ALLOWED_ROOTS) or not os.path.isfile(p):
         raise HTTPException(404, "Archivo no disponible")
-    return p
+    return Path(p)
 
 
 @app.get("/api/miniatura")
@@ -424,15 +424,16 @@ def excel(trabajo: str):
         row = conn.execute("SELECT * FROM trabajos WHERE id=?", (trabajo,)).fetchone()
     if not row or row["estado"] != "terminado":
         raise HTTPException(404, "Esa revisión no terminó: no tiene Excel")
+    job_id = row["id"]
     ruta = Path(row["excel"]) if row["excel"] else None
     if not ruta or not ruta.exists():
         latest = _latest(json.loads(row["carpetas"]))
-        ruta = _excel(VIEWER_DIR / "jobs" / trabajo, latest,
-                      {"revision": trabajo, "fecha": row["fecha"], "tipo": row["tipo"], "postulantes": len(latest),
+        ruta = _excel(VIEWER_DIR / "jobs" / job_id, latest,
+                      {"revision": job_id, "fecha": row["fecha"], "tipo": row["tipo"], "postulantes": len(latest),
                        "desde_cache": row["desde_cache"]})
         with _db() as conn:
-            conn.execute("UPDATE trabajos SET excel=? WHERE id=?", (str(ruta), trabajo))
-    return FileResponse(ruta, filename=f"verificacion_{trabajo}.xlsx")
+            conn.execute("UPDATE trabajos SET excel=? WHERE id=?", (str(ruta), job_id))
+    return FileResponse(ruta, filename=f"verificacion_{job_id}.xlsx")
 
 
 def main(port=8000, open_browser=True):

@@ -40,7 +40,7 @@ from verification import resources as R
 
 pillow_heif.register_heif_opener()
 Image.MAX_IMAGE_PIXELS = None
-DIR = C.ROOT / "entrenamiento"
+DIR = C.ROOT / "training"
 SIDE = 1024
 CANDIDATE = C.MODELS_DIR / "dbnet_cl_candidato.pt"
 EXCLUDE = {"ocluido"}
