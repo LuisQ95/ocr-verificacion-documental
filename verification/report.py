@@ -127,8 +127,8 @@ def excel(path, people, documents, meta, rejected_files):
     ws.column_dimensions["B"].width = 90
 
     _sheet(wb.create_sheet("personas"),
-          ["Carpeta", f"{PF.documents.ID_LABEL} / documento de identidad", "Identidad declarada", "Autenticidad", "Aptitud", "Motivos de aptitud",
-           "Documentos",
+          ["Carpeta", f"{PF.documents.ID_LABEL} / documento de identidad", "Identidad declarada", "Autenticidad",
+           "Aptitud", "Motivos de aptitud", "Documentos",
            "Falsificados", "Observados", "Desactualizados", "Documentos falsificados", "Puesto"],
           [[p["carpeta"], p["dni"], "SÍ" if p["declarado"] else "NO", p["veredicto"], p["aptitud"],
             " | ".join(p["motivos_aptitud"]), p["documentos"], p["falsificados"], p["observados"],
