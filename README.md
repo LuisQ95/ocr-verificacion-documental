@@ -42,7 +42,7 @@ flowchart LR
 | **SIN DATO OFICIAL** | No se entregó el JSON oficial: solo se extraen los datos. |
 
 La aptitud para el cargo (**APTO / NO APTO / INCOMPLETO / NO EVALUABLE**) se decide con los datos oficiales y con
-los requisitos de [config/requisitos_cl.yaml](config/requisitos_cl.yaml): clases de licencia, control vigente,
+los requisitos de [verification/profiles/operator_certification/requirements.yaml](verification/profiles/operator_certification/requirements.yaml): clases de licencia, control vigente,
 antecedentes y certificado AMECO aprobado y vigente para el equipo del cargo.
 
 ### Principio de las reglas con OCR
@@ -72,37 +72,54 @@ El reconocedor (PARSeq) se reentrenó para que lea letra por letra en vez de rec
 | Palabras con tilde o Ñ | 77,6 % | **97,1 %** |
 | PDFs reales, palabras (150 DPI) | 99,45 % | **99,82 %** |
 
-Método, datos y resultados completos en [entrenamiento/FICHA_RECONOCEDOR.md](entrenamiento/FICHA_RECONOCEDOR.md).
+Método, datos y resultados completos en [training/RECOGNIZER_CARD.md](training/RECOGNIZER_CARD.md).
 
 ## Estructura
 
 ```
-verificacion/            núcleo: lectura, alineación, OCR, comparación, reportes, protección de recursos
-  chile/                 flujo de los documentos chilenos (plantillas, lectura, reglas, aptitud, extracción)
-entrenamiento/           entrenamiento y evaluación del reconocedor y del detector, calibración de la confianza
-auditoria/               medición del flujo contra un ground truth (solo lectura: nunca alimenta reglas ni modelos)
-visor/                   visor web local para revisar postulantes en lote
-visor_pruebas/           visor para un evaluador externo: procesa en memoria, acceso por IP + contraseña
-scripts/sinteticos_reales/vocabulario_amplio.py   vocabulario de nombres para el reentrenamiento
-config/requisitos_cl.yaml                          requisitos por cargo
-tests/                   pruebas automáticas
-verificar_postulante_cl.ipynb                      verificación de un postulante paso a paso
+verification/             núcleo común, igual para cualquier conjunto de documentos
+  pipeline.py             verificación en lote (consola); batch_run.py la usa el visor
+  in_memory.py            verificación de un postulante en memoria (visor de pruebas)
+  reading.py              lectura de cada archivo: PDF nativo, PDF de imágenes y fotos alineadas con la plantilla
+  pdf.py, image.py        texto visible y oculto, objetos del PDF; homografía y control de la alineación
+  ocr.py                  detector DBNet + reconocedor PARSeq, con confianza calibrada
+  fields.py, boxes.py     asignación de palabras a zonas, normalización OCR, estados de campo y de documento
+  report.py, resources.py, config.py   SQLite + Excel, protección de GPU/RAM, rutas, umbrales y perfil en uso
+  profiles/               perfiles de documentos (config.PROFILE o la variable VERIFICATION_PROFILE)
+    operator_certification/   registro de conductor y certificado de competencia de operador:
+                              templates, normalize, record_body, rules, requirements (+ requirements.yaml),
+                              extraction y documents (lo que el núcleo necesita saber de cada documento)
+training/                 entrenamiento y evaluación del reconocedor y del detector, calibración de la confianza
+audit/                    medición contra un ground truth (solo lectura: nunca alimenta reglas ni modelos)
+viewer/                   visor web local para revisar postulantes en lote
+evaluation_viewer/        visor para un evaluador externo: procesa en memoria, acceso por IP + contraseña
+scripts/synthetic/broad_vocabulary.py   vocabulario de nombres para el reentrenamiento
+tests/                    pruebas automáticas
+verify_applicant.ipynb    verificación de un postulante paso a paso
 ```
+
+Para otro país o región se agrega un perfil en `verification/profiles/<nombre>/` con los mismos módulos y se
+selecciona con `VERIFICATION_PROFILE=<nombre>`; el núcleo no cambia.
 
 ## Instalación
 
 Requiere Python 3.12 (o superior) y, para el OCR en GPU, una tarjeta NVIDIA. Sin GPU funciona en CPU, más lento.
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-lock.txt
 ```
+
+`requirements-lock.txt` fija la versión exacta de cada paquete (también las dependencias indirectas) del entorno con
+que se midieron los dictámenes. `requirements.txt` declara las dependencias directas. Cambiar una versión puede
+cambiar lecturas OCR (al pasar de Pillow 11 a 13, las fotos JPEG se decodifican con píxeles levemente distintos):
+toda actualización se mide antes de adoptarla.
 
 **Lo que no está en el repositorio:**
 
 - **Plantillas oficiales** (`official_file/`): PDF en blanco de la Hoja de Vida y de los certificados AMECO, que el
   sistema usa para ubicar cada campo. Hay que agregarlas con los nombres que espera
-  [verificacion/chile/plantillas_cl.py](verificacion/chile/plantillas_cl.py).
-- **Pesos del modelo** (`modelos/`): no se publican. [verificacion/config.py](verificacion/config.py) indica qué
+  [verification/profiles/operator_certification/templates.py](verification/profiles/operator_certification/templates.py).
+- **Pesos del modelo** (`models/`): no se publican. [verification/config.py](verification/config.py) indica qué
   archivo usa; sin él, el lector usa el PARSeq preentrenado de docTR.
 - **Datos:** documentos de postulantes, datos oficiales y conjuntos de entrenamiento. Contienen datos personales o se
   generan localmente.
@@ -114,16 +131,16 @@ pip install -r requirements.txt
 **Verificar todos los postulantes de una carpeta:**
 
 ```bash
-python -u -m verificacion.chile.pipeline_cl --postulantes postulant_files --oficiales webscrap_files --salida resultados/chile
+python -u -m verification.pipeline --applicants postulant_files --official-data webscrap_files --output results/run
 ```
 
 Cada postulante es una carpeta con sus documentos en `postulant_files/<NOMBRE>/` y sus JSON oficiales en
-`webscrap_files/<NOMBRE>/`. El reporte queda en `resultados/chile/reporte_verificacion.xlsx`.
+`webscrap_files/<NOMBRE>/`. El reporte queda en `results/run/verification_report.xlsx`.
 
 **Visor local** (revisión en lote, con caché y Excel acumulado):
 
 ```bash
-python -m visor.servidor
+python -m viewer.server
 ```
 
 **Visor de pruebas para un evaluador externo:** los archivos se procesan en memoria y no se guardan en disco. El
@@ -131,10 +148,10 @@ acceso se limita a las IP registradas (por ejemplo, la de la PC del evaluador en
 requiere contraseña; tras 5 intentos fallidos la IP se bloquea 15 minutos.
 
 ```bash
-python -m visor_pruebas.configurar --clave                 # contraseña (se guarda solo su hash)
-python -m visor_pruebas.configurar --ip 100.101.102.103    # IP permitida
-python -m visor_pruebas.configurar --host 100.64.0.5       # dirección donde escucha el visor
-python -m visor_pruebas.servidor
+python -m evaluation_viewer.configure --key                  # contraseña (se guarda solo su hash)
+python -m evaluation_viewer.configure --ip 100.101.102.103    # IP permitida
+python -m evaluation_viewer.configure --host 100.64.0.5       # dirección donde escucha el visor
+python -m evaluation_viewer.server
 ```
 
 ## Pruebas
