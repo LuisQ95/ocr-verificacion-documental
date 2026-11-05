@@ -45,7 +45,7 @@ pyclipper==1.4.0
 pydantic==2.14.1
 pydantic_core==2.50.1
 Pygments==2.21.0
-pymupdf==1.28.2
+pymupdf==2.0
 pypdfium2==5.14.0
 pytest==9.2.0
 python-dateutil==3.0.0

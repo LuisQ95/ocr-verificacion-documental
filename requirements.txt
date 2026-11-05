@@ -15,7 +15,7 @@ torchvision==0.26.0+cu130
 python-doctr==1.0.1          # detección (DBNet) + reconocimiento (PARSeq)
 
 # --- Documentos e imágenes
-pymupdf==1.28.2              # lectura de PDF, texto nativo, fuentes, metadatos, render
+pymupdf==2.0              # lectura de PDF, texto nativo, fuentes, metadatos, render
 opencv-python==4.14.0.94     # alineación con la plantilla (ORB/SIFT + homografía)
 numpy==2.2.6
 pillow>=13.0                 # 13.0 corrige fallas de seguridad del decodificador
