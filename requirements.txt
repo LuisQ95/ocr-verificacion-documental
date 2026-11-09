@@ -29,7 +29,7 @@ pyyaml>=6.0                  # requisitos por cargo (requirements.yaml del perfi
 pandas>=2.0                  # tablas del notebook
 
 # --- Visores web (viewer/, evaluation_viewer/)
-fastapi==0.143.2
+fastapi==0.162.0
 uvicorn==0.54.0
 
 # --- Pruebas automáticas (python -m pytest tests)
